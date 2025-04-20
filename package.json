@@ -1,0 +1,12 @@
+{
+  "name": "bin-api",
+  "version": "1.0.0",
+  "description": "API for Testing NodeJS",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Yury Belokhonov",
+  "license": "ISC"
+}
