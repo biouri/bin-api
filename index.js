@@ -1,28 +1,17 @@
-import http from 'http';
+import express from 'express';
 
-const host = '127.0.0.1';
 const port = 8000;
+// Создание приложения Express = вызов функции express()
+const app = express();
 
-// В createServer передается функция слушатель запросов
-const server = http.createServer((req, res) => {
-	// Обработка запроса и генерация ответа
-	switch (req.method) {
-		case 'GET':
-			switch (req.url) {
-				case '/hello':
-					// Устанавливаем параметры для ответа
-					res.statusCode = 200;
-					res.setHeader('Content-Type', 'text/plain');
-					// Ответить (после установки параметров)
-					res.end('Привет!');
-					break;
-			}
-			break;
-	}
+// В рамках приложения можно создавать Маршруты
+// Для обработки запроса применяется callback функция с request, response
+app.get('/hello', (req, res) => {
+	res.send('Привет!');
 });
 
-// Обработчик слушает запросы в цикле
-// Третий параметр - функция, которая выполнится после запуска сервера
-server.listen(port, host, () => {
-	console.log(`Сервер запущен на ${host}:${port}`);
+// Создание сервера
+// Приложение прослушивает запросы на port в бесконечном цикле
+app.listen(port, () => {
+	console.log(`Сервер Express запущен на http://localhost:${port}`);
 });
