@@ -75,6 +75,31 @@ app.route('/user')
 		res.send('Update User! PUT /user');
 	});
 
+// Тестирование ответов клиенту
+app.get('/test', (req, res) => {
+	// Задать специфичные типы содержимого ответа, например, HTML или JSON
+	res.type('application/json');
+	// res.location('...');
+	// res.links({
+	// 	next: '...'
+	// });
+	// Установка cookie (например, token для авторизации)
+	res.cookie('token', 'abcdefgh', {
+		domain: '',
+		path: '/',
+		secure: true,
+		// expires: new Date(Date.now() + 600000) // 10 минут от текущего времени
+		maxAge: 600000 // Альтернатива expires: использовать maxAge 10 минут
+	});
+	// Пример очистки cookie token (когда пользователь выходит из системы)
+	// res.clearCookie('token');
+	// res.send('Привет!');
+	// Если нечего возвращать, желательно установить status и завершить обработоку end()
+	// Если status не указан, он будет 200
+	// res.status(404).end();
+	res.end();
+});
+
 // Создание сервера
 // Приложение прослушивает запросы на port в бесконечном цикле
 app.listen(port, () => {

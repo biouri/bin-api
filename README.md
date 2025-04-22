@@ -24,6 +24,7 @@ git push -u origin main
 ```bash
 git commit -m "Add Express HTTP Server"
 git commit -m "Add All RegExp Routing + CallBack Chaining"
+git commit -m "Add Response Headers, Status, Redirect, Location, Cookies"
 ```
 
 ## 1.1. Простой http сервер
@@ -425,5 +426,219 @@ app
 // Приложение прослушивает запросы на port в бесконечном цикле
 app.listen(port, () => {
   console.log(`Сервер Express запущен на http://localhost:${port}`);
+});
+```
+
+## 1.4. Ответы клиенту
+
+### Ответы сервера:
+
+1. Отправка текста:
+   Примером может служить отправка простого сообщения "Привет".
+
+2. Отправка JSON:
+
+- Можно использовать метод `send` для отправки JSON, например, `{ success: true }`.
+
+```javascript
+// Тестирование ответов клиенту
+app.get("/test", (req, res) => {
+  // JSON
+  res.send({ success: true });
+});
+```
+
+http GET http://localhost:8000/test
+
+```text
+HTTP/1.1 200 OK
+Connection: keep-alive
+Content-Length: 16
+Content-Type: application/json; charset=utf-8
+Date: Tue, 22 Apr 2025 09:26:19 GMT
+ETag: W/"10-oV4hJxRVSENxc/wX8+mA4/Pe4tA"
+Keep-Alive: timeout=5
+X-Powered-By: Express
+
+{
+    "success": true
+}
+```
+
+- Для работы исключительно с JSON предусмотрен метод `json`.
+
+```javascript
+app.get("/test", (req, res) => {
+  // Изменнеие статуса и ответ JSON
+  res.status(201).json({ success: true, type: "json" });
+});
+```
+
+http GET http://localhost:8000/test
+
+```text
+HTTP/1.1 201 Created
+Connection: keep-alive
+Content-Length: 30
+Content-Type: application/json; charset=utf-8
+Date: Tue, 22 Apr 2025 10:01:13 GMT
+ETag: W/"1e-/Y2Cr8+aC3AlAqjsTMrwE0XXQTM"
+Keep-Alive: timeout=5
+X-Powered-By: Express
+
+{
+    "success": true,
+    "type": "json"
+}
+```
+
+- Есть также метод `jsonp` для работы с JSON в контексте `cross-origin` запросов.
+
+3. Управление статусами ответа:
+   Можно явно задать статус ответа, например, `201` при создании ресурса.
+
+```javascript
+app.get("/test", (req, res) => {
+  // Изменнеие статуса и ответ JSON
+  res.status(201).send({ success: true });
+});
+```
+
+http GET http://localhost:8000/test
+
+```text
+HTTP/1.1 201 Created
+Connection: keep-alive
+Content-Length: 16
+Content-Type: application/json; charset=utf-8
+...
+```
+
+4. Отправка файла:
+   Метод `download` позволяет предложить пользователю скачать файл, с возможностью задать имя файла.
+
+```javascript
+app.get("/test", (req, res) => {
+  // Предложить пользователю скачать файл, с возможностью задать новое имя файла
+  res.download("./choco.md", "optional_filename.txt");
+});
+```
+
+### Перенаправления:
+
+Редирект: Позволяет перенаправить пользователя на другую страницу или сайт с помощью статуса (например, `301`) и указания URL.
+
+```javascript
+app.get("/test", (req, res) => {
+  // Перенаправить на другую страницу или сайт с помощью статуса (например, `301`)
+  res.redirect(301, "http://localhost:8000/user");
+});
+```
+
+```text
+http GET http://localhost:8000/test
+HTTP/1.1 301 Moved Permanently
+Connection: keep-alive
+Content-Length: 60
+Content-Type: text/plain; charset=utf-8
+Date: Tue, 22 Apr 2025 10:31:13 GMT
+Keep-Alive: timeout=5
+Location: http://localhost:8000/user
+Vary: Accept
+X-Powered-By: Express
+
+Moved Permanently. Redirecting to http://localhost:8000/user
+```
+
+### Работа с заголовками:
+
+1. Добавление и изменение заголовков:
+
+- Метод `set` позволяет добавить или изменить заголовки, например, для явного задания `Content-Type`, `Location` и др.
+
+```javascript
+app.get("/test", (req, res) => {
+  // Добавить или изменить заголовки
+  res.set("Content-Type", "text/plain");
+  res.send("Привет!");
+});
+```
+
+- Метод `append` добавляет новые заголовки к ответу.
+
+```javascript
+app.get("/test", (req, res) => {
+  // Добавить заголовки
+  res.append("Warning", "Code");
+  res.send("Привет!");
+});
+```
+
+2. Типы содержимого:
+   Можно задавать специфичные типы содержимого ответа, например, HTML или JSON, с помощью метода `type`.
+
+```javascript
+app.get("/test", (req, res) => {
+  // Задать специфичные типы содержимого ответа, например, HTML или JSON
+  res.type("application/json");
+  // Аналогично можно установить location, links
+  // res.location('...');
+  // res.links({
+  // 	next: '...'
+  // });
+  res.send("Привет!");
+});
+```
+
+### Управление Cookies:
+
+1. Установка cookies:
+   Метод `cookie` помогает установить `cookie`, с возможностью задать параметры, такие как `domain`, `path`, `secure`, и `expires`. Cookies передаются с каждым запросом пользователя.
+
+2. Удаление cookies:
+   С помощью `clearCookie` можно удалить указанный `cookie`.
+
+```javascript
+app.get("/test", (req, res) => {
+  // Задать специфичные типы содержимого ответа, например, HTML или JSON
+  res.type("application/json");
+  // Установка cookie (например, token для авторизации)
+  res.cookie("token", "abcdefgh", {
+    domain: "",
+    path: "/",
+    secure: true,
+    expires: new Date(Date.now() + 600000), // 10 минут от текущего времени
+  });
+  // Пример очистки cookie token (когда пользователь выходит из системы)
+  res.clearCookie("token");
+  res.send("Привет!");
+  // res.end();
+});
+```
+
+res.cookie() параметр expires должен быть объектом Date.
+Альтернатива: использовать maxAge.
+Если просто указать "время жизни" cookie в миллисекундах — используется maxAge:
+
+```javascript
+res.cookie("token", "abcdefgh", {
+  domain: "",
+  path: "/",
+  secure: true,
+  maxAge: 600000, // 10 минут
+});
+```
+
+### Обработка запросов без ответа:
+
+Если сервер не отправляет ответ, клиент будет ожидать вечно. Можно использовать метод `send.status()` с последующим `end()` для немедленного завершения обработки.
+Крайне желательно, чтобы был выполнен любой метод для ответа res, чтобы route разрезолвился.
+
+```javascript
+app.get("/test", (req, res) => {
+  // Если нечего возвращать, желательно установить status и завершить обработоку end()
+  // Если status не указан, он будет 200
+  // res.status(404).end();
+  res.end();
 });
 ```
