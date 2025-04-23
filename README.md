@@ -3,6 +3,8 @@
 1.1. Простой http сервер
 1.2. Переход на Express
 1.3. Маршрутизация
+1.4. Ответы клиенту: Headers, Status, Redirect, Location, Cookies
+1.5. Router
 
 ## Git
 
@@ -25,6 +27,7 @@ git push -u origin main
 git commit -m "Add Express HTTP Server"
 git commit -m "Add All RegExp Routing + CallBack Chaining"
 git commit -m "Add Response Headers, Status, Redirect, Location, Cookies"
+git commit -m "Add Router express.Router()"
 ```
 
 ## 1.1. Простой http сервер
@@ -535,8 +538,9 @@ app.get("/test", (req, res) => {
 });
 ```
 
-```text
 http GET http://localhost:8000/test
+
+```text
 HTTP/1.1 301 Moved Permanently
 Connection: keep-alive
 Content-Length: 60
@@ -641,4 +645,78 @@ app.get("/test", (req, res) => {
   // res.status(404).end();
   res.end();
 });
+```
+
+## 1.5. Router
+
+Роутинг позволяет приложению разделить логику обработки запросов по разным адресам, облегчая поддержку и расширение функционала.
+
+### Рост приложения и проблемы монолитной архитектуры
+
+- Проблема масштабирования: Когда приложение растет, добавляется все больше функционала, что приводит к увеличению размера корневого файла.
+- Проблемы поддержки и модульности: Все расположение в одном файле затрудняет поддержку и тестируемость отдельных компонентов приложения.
+
+### Решение: Экспресс роутер
+
+1. Декомпозиция приложения:
+   Экспресс роутер позволяет разделить приложение на отдельные модули (роуты), каждый из которых отвечает за свою часть логики (например, управление пользователями).
+
+2. Создание роутера:
+   Для каждой категории функций (например, пользователи) создается свой файл с роутами в подпапке (например, `Users`).
+
+3. Определение маршрутов:
+   В каждом файле роутера можно определить обработку для разных HTTP-методов (GET, POST и т.д.) и путей.
+
+4. Привязка роутера к приложению: С помощью метода `app.use` роутеры привязываются к корневому приложению. Таким образом, запросы пользователей направляются в соответствующий роутер для обработки.
+
+### Практический пример
+
+Показано создание роутера для пользователя (`Users.js`), в котором определены маршруты для логина и регистрации. Привязка данного роутера к основному приложению позволяет обрабатывать запросы к `/users/login` и `/users/register`.
+
+`users\users.js`
+
+```javascript
+import express from "express";
+
+// Создание роутера
+const userRouter = express.Router();
+
+userRouter.post("/login", (req, res) => {
+  res.send("login");
+});
+
+userRouter.post("/register", (req, res) => {
+  res.send("register");
+});
+
+export { userRouter };
+```
+
+`index.js`
+
+```javascript
+import { userRouter } from './users/users.js'
+...
+// Привязка роутера userRouter к корневому роуту '/users' основного приложения
+// позволяет обрабатывать запросы к '/users/login' и '/users/register' ...
+app.use('/users', userRouter);
+```
+
+### Запуск и проверка
+
+Для демонстрации работы роутинга запускается приложение и проверяется обработка запросов на регистрацию и логин пользователя.
+
+http POST http://localhost:8000/users/login
+
+```text
+HTTP/1.1 200 OK
+Connection: keep-alive
+Content-Length: 5
+Content-Type: text/html; charset=utf-8
+Date: Wed, 23 Apr 2025 10:12:14 GMT
+ETag: W/"5-Jzb6spHwTmm2LUkMPAk2H1uCRho"
+Keep-Alive: timeout=5
+X-Powered-By: Express
+
+login
 ```

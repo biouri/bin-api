@@ -1,4 +1,5 @@
 import express from 'express';
+import { userRouter } from './users/users.js'
 
 const port = 8000;
 // Создание приложения Express = вызов функции express()
@@ -74,6 +75,10 @@ app.route('/user')
 		console.log('PUT /user');
 		res.send('Update User! PUT /user');
 	});
+
+// Привязка роутера userRouter к корневому роуту '/users' основного приложения
+// позволяет обрабатывать запросы к '/users/login' и '/users/register' ...
+app.use('/users', userRouter);
 
 // Тестирование ответов клиенту
 app.get('/test', (req, res) => {
