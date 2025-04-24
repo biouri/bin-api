@@ -1,4 +1,4 @@
-import express from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import { userRouter } from './users/users.js'
 
 const port = 8000;
@@ -34,13 +34,13 @@ app.all('/hello', (req, res, next) => {
 });
 
 // Дополнительный CallBack
-const cb = (req, res, next) => {
+const cb = (req: Request, res: Response, next: NextFunction) => {
 	console.log('Extra CallBack');
 	next();
 };
 
 // Дополнительный CallBack 2
-const cb2 = (req, res, next) => {
+const cb2 = (req: Request, res: Response, next: NextFunction) => {
 	console.log('Extra CallBack 2');
 	next();
 };
@@ -129,7 +129,7 @@ app.get('/example', (res, req) => {
 // Можно обработать код ошибки, тип ошибки, модифицировать ответ, напримр json...
 // Вместо next() отвечать желательно каким-нибудь статусом, например: 
 // 401 - неавторизован, 500 - ошибка сервера...
-app.use((err, req, res, next) => {
+app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
 	console.log(err.message);
 	res.status(401).send(err.message);
 });

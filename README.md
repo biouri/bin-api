@@ -6,6 +6,8 @@
 1.4. Ответы клиенту: Headers, Status, Redirect, Location, Cookies
 1.5. Router
 1.6. Middleware Global Handlers, Route-specific and Error Handlers
+2.1. TypeScript
+2.2. Установка TypeScript
 
 ## Git
 
@@ -30,6 +32,7 @@ git commit -m "Add All RegExp Routing + CallBack Chaining"
 git commit -m "Add Response Headers, Status, Redirect, Location, Cookies"
 git commit -m "Add Router express.Router()"
 git commit -m "Add Middleware Global Handlers, Route-specific and Error Handlers"
+git commit -m "Add TypeScript and tsconfig.json"
 ```
 
 ## 1.1. Простой http сервер
@@ -810,3 +813,209 @@ app.use((err, req, res, next) => {
    Express.js позволяет использовать как встроенные (например, для статических файлов), так и сторонние middleware (например, для обработки тела запроса или cookies).
 2. Применение:
    Выбор и применение различных middleware зависит от задач, которые предстоит решить в приложении.
+
+### 2.1. TypeScript
+
+https://www.typescriptlang.org/
+
+TypeScript Deep Dive:
+https://basarat.gitbook.io/typescript/
+
+TypeScript HandBook:
+https://www.typescriptlang.org/docs/handbook/intro.html
+
+TypeScript — надмножество JavaScript, разрабатываемое Microsoft и Open Source сообществом.
+
+- Любой JavaScript код валиден в TypeScript.
+- Добавляет типизацию и полезные функции в JavaScript.
+
+### Преимущества TypeScript
+
+1. Типизация:
+   Улучшает стабильность и удобство разработки больших приложений.
+2. Удобство разработки:
+   Предлагает автокомплит для ускорения написания кода.
+3. Проверки на этапе разработки:
+   Позволяет обнаруживать ошибки до запуска кода.
+4. Расширенные возможности:
+   Включает интерфейсы, абстрактные классы, Enum и другие улучшения по сравнению с JavaScript.
+5. Облегчает архитектуру приложения:
+   Упрощает реализацию архитектурных паттернов, таких как Dependency Injection.
+
+Почему TypeScript?
+
+- Используется в крупных фреймворках (NestJS, Angular), и в альтернативах Node.js, например, Deno.
+- На пике популярности за счет своих возможностей, хотя и имеет недостатки (например, отсутствие четкой спецификации).
+- Особенно важен для разработки больших фронтенд и бэкенд приложений, где типизация критична для стабильности и безопасности.
+
+## 2.2. Установка TypeScript
+
+Проверка, установлен ли TypeScript глобально в системе:
+
+```shell
+tsc -v
+```
+
+Способ проверки через npm:
+
+```shell
+npm list -g typescript
+```
+
+Если установлен:
+
+```text
+C:\Program Files\nodejs -> .\
+└── typescript@5.8.3
+```
+
+Если не установлен, будет:
+
+```text
+C:\Program Files\nodejs -> .\
+└── (empty)
+```
+
+Установка через npm:
+
+```shell
+npm install -g typescript
+```
+
+После установки доступна команда `tsc` (TypeScript Compiler) - компилятор для преобразования TypeScript в JavaScript.
+
+Проверка версии TypeScript
+
+```shell
+tsc --version
+tsc -v
+```
+
+### Настройка TypeScript
+
+1. Инициализация проекта:
+
+```shell
+tsc --init
+```
+
+создает файл `tsconfig.json` в корне проекта с настройками компилятора.
+
+2. В `tsconfig.json` настраиваем:
+
+- Целевую версию ECMAScript (например, ES6).
+- Указываем использование декораторов, если они необходимы для `dependency injection`.
+
+`tsconfig.json`
+
+```json
+{
+  "compilerOptions": {
+    /* Language and Environment */
+    // "target": "es2016", // Настройка по умолчанию
+    "target": "ES6", // Будем использовать ES6
+
+    // experimentalDecorators будем использовать для DI
+    "experimentalDecorators": true,
+    // Для того чтобы была возможность эммитить дополнительно метаданные
+    "emitDecoratorMetadata": true,
+
+    /* Modules */
+    // При компиляции по умолчанию используются модули commonjs
+    // "module": "commonjs",
+    // Лучше изменить на ES модули
+    "module": "ES6",
+    // Будем использовать модули node (как TypeScript будет результировать модули)
+    // "moduleResolution": "node10",  // Опция по умолчанию
+    "moduleResolution": "node",
+
+    /* JavaScript Support */
+    // В нашем приложении будет использоваться только TS
+    // "allowJs": true,  // Позволяет использовать также JS код
+    // "checkJs": true,
+
+    /* Emit */
+    // Что и куда будет Emit-иться после команды tsc
+    // Сборка будет выполняться в /dist
+    "outDir": "./dist",
+    // Убрать комментарии
+    "removeComments": true,
+    // Чтобы можно было импортировать Common модули в ES
+    "esModuleInterop": true,
+
+    /* Type Checking */
+    // Включить жесткую проверку типов (самые жесткие требования к типизации)
+    "strict": true,
+    // Далее идет список отдельных опций, которые можно включить/выключить
+    // по умолчанию "strict": true включает все эти опции
+
+    // Свойство у класса не обязательно должно быть инициализировано
+    // Будем использовать объекты в виде классов, которые описывают данные DTO
+    // Данные DTO будут использоваться с декораторами для валидации
+    // у DTO нет инициализации свойств, будут использоваться классы как интерфейсы
+    "strictPropertyInitialization": false,
+
+    /* Completeness */
+    // Проверка сторонних библиотек на корректность типов
+    "skipLibCheck": true
+  }
+}
+```
+
+### Переход к TypeScript
+
+1. Переименовываем файлы `.js` в `.ts`.
+
+2. В случае отсутствия типов для библиотек, устанавливаем их с `npm install @types/<library> -D` (например, `@types/express` для Express):
+
+```shell
+npm install @types/express -D
+```
+
+`package.json`
+
+```json
+{
+  ...
+
+  "devDependencies": {
+    "@types/express": "^5.0.1"
+  }
+}
+```
+
+3. Типизируем параметры функций и переменные там, где TypeScript не может автоматически определить типы. Пример: добавляем типы для параметров в Express middleware.
+
+```javascript
+import express, { Request, Response, NextFunction } from 'express';
+...
+app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
+	console.log(err.message);
+	res.status(401).send(err.message);
+});
+```
+
+4. Компиляция TypeScript в JavaScript выполняется командой `tsc`, результат компиляции обычно находится в директории `dist`.
+
+### Запуск и проверка приложения
+
+1. Запускаем скомпилированный JavaScript с помощью Node.js из директории `dist`.
+2. Обновляем `package.json`, указывая путь к основному файлу приложения в `dist`.
+
+`package.json`
+
+```json
+{
+  ...
+  "scripts": {
+    "start": "node ./dist/index.js",
+  }
+  ...
+}
+```
+
+Запуск теперь выполняется из директории `dist`.
+
+```shell
+npm start
+```
