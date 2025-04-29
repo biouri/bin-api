@@ -395,3 +395,286 @@ interface IUser {
 function bid<T>(sum: T): boolean {
     return true;
 }
+
+
+// Классы
+
+// Класс без конструктора
+class Point {
+    x: number;
+    y: number;
+}
+
+// Создание экземпляра класса (Creating an instance of a class)
+// Создание объекта точки без заполнения свойств
+let coord = new Point();
+// Дальнейшее заполнение свойств
+coord.x = 12568;
+coord.y = 45689;
+
+
+// Объявление класса
+// Пример с классом имеющим свойства latitude и longitude
+class Coordinate {
+    message = "1";
+    latitude: number;
+    longitude: number;
+
+    // protected метод дотупен в классе-родителе и наследнике
+    // но недоступен в экземпляре (инстансе)
+    protected test() {
+        if(this.latitude > 0) {
+            console.log('Успешное тестирование...');
+            //....
+        }
+    }
+
+    // Пример метода для расчета дистанции
+    computeDistance(newLat: number, newLng: number) {
+        return 0;
+    }
+
+    // Конструкторы
+    // Методы для инициализации объектов класса
+    constructor(lat: number, lng: number) {
+        // Используется ключевое слово this для обращения к свойствам
+        this.latitude = lat;
+        this.longitude = lng;
+        console.log(this.message); // Контроль последовательности вызовов
+    }
+}
+
+// Наследование
+// Создание классов на основе существующих 
+class MapLocation extends Coordinate {
+    message = "2";
+    // _ нижнее подчеркивание это соглашение
+    private _name: string; // Само значение _name приватное
+    // # это приватное свойство в JavaScript в TS редко используется
+    #b: boolean;
+
+    // Доступ к приватному значению _name через Getter
+    get name() {
+        // Getter позволяет добавить дополнительную логику
+        return this._name;
+    }
+
+    set name(s: string) {
+        // Setter позволяет добавить дополнительную логику
+        this._name = s + '_Extra!';
+    }
+
+    // Переопределение метода (лучше использовать с override)
+    // В новой версии TypeScript 4.3 появилось override
+    // override определение помогает исключить ошибки если
+    // в базовом классе убрать метод с таким же именем
+    override computeDistance(newLat: number, newLng: number) {
+        console.log(this.name);
+        return 1;
+    }
+
+    // Конструктор класса-наследника
+    constructor(lat: number, lng: number, name: string) {
+        // Сначала в конструкторе класса-наследника
+        // Необходимо вызвать конструктор базового класса
+        // Первым исполнится конструктор базового класса
+        super(lat, lng);
+        // Затем идут другие действия инициализации
+        this.test();
+    }
+}
+
+let loc = new MapLocation(1, 2, 'Начало света');
+// Property 'test' is protected and only accessible within class 
+// 'Coordinate' and its subclasses.
+// loc.test();
+
+// Абстракции при помощи интерфейсов
+// Интерфейс - это желаемое поведение
+// Интерфейс определяет как должна выглядеть реализация
+interface loggerService {
+    log: (s: string) => void;
+}
+
+// Имплементация интерфейса
+// Потребуется обязательно реализовать методы интерфейса
+// Интерфейс это некий адаптер соединяющий взаимодействующие классы
+class Logger implements loggerService {
+    // Используется модификатор public (по умолчанию или явно)
+    public log(s: string) {
+        console.log(s);
+    }
+
+    // Приватные методы и переменные недоступны извне
+    private error() {
+        console.log('Error');
+    }
+
+    private a = "PRIVATE";
+}
+
+const l = new Logger();
+l.log('d');
+// l.error(); // Приватные методы и переменные недоступны извне
+
+
+// В TypeScript нет статических классов как в C#, 
+// но есть статические переменные и методы
+
+// Статические методы и переменные классов в TypeScript
+// существуют до создания инстансов
+class MyClass {
+    // Статическая переменная
+    static a = "555";
+
+    // Статический блок инициализации
+    static {
+        // Описание статической части инициализации класса
+        // Появилось в TypeScript 4.4
+    }
+}
+
+// Для классов со статическими методами или переменными 
+// не требуется инициализация, можно сразу к ним обратиться
+console.log(MyClass.a);
+
+
+// Классы с Дженериками
+// существуют только на этапе Complile
+class GenClass<T> {
+    a: T;
+}
+
+let gen = new GenClass<string>();
+gen.a; // GenClass<string>.a: string
+
+
+// Абстрактные классы
+// Имеют ограничение - нельзя создать экземпляр абстрактного класса
+abstract class Base {
+    // Абстрактные классы содержат готовую базовую функциональность,
+    // но требует от пользователей этого класа добавить функциональность
+    print(s: string) {
+        console.log(s);
+    }
+
+    // Объявление абстрактного метода, который потребуется реализовать
+    abstract error(s: string): void;
+}
+
+// Требуется расширить абстрактный класс и затем создать экземпляр
+class BaseExtended extends Base {
+    // Обязательно необходимо реализовать абстрактные методы
+    error(s: string): void {
+        console.log('');
+    }
+
+    // Дополнительная логика
+}
+
+// Создание экземпляра
+const e = new BaseExtended();
+
+
+// Расширение и сужение классов
+class Model {
+    model: string;
+
+    getInfo(): string {
+        return `Model: ${this.model}`;
+    }
+}
+
+class Car extends Model {
+    color: string;
+    length: number;
+
+    getInfo(): string {
+        return `Model: ${this.model}, Color: ${this.color}, Length: ${this.length}`;
+    }
+}
+
+// Создание экземпляря более расширенного класса
+// bmwX5 будет содержать все свойства: color, length, model
+// но доступ при этом будет только к car.model
+const x1: Model = new Car();
+
+// Приведение типа
+const carX1 = x1 as Car;
+carX1.model = 'BMW';
+carX1.color = 'Green';
+carX1.length = 5;
+
+console.log(`Модель: ${x1.model}`); // работает
+// console.log(`Модель: ${x1.color}`); // ошибка
+
+function printCarInfo(m: Model) {
+    // Ошибки досупа к m.color и m.length
+    // console.log(`Модель: ${m.model}, цвет: ${m.color}, длина: ${m.length}`);
+    if (m instanceof Car) {
+        // Теперь m.color и m.length доступны
+        console.log(`Модель: ${m.model}, цвет: ${m.color}, длина: ${m.length}`);
+    }
+}
+
+printCarInfo(x1);
+
+// Когда это полезно:
+// При работе с API, возвращающими объекты базового типа.
+// В обобщённых коллекциях (Model[]), которые могут содержать разные подклассы.
+// При написании функций, принимающих общий тип, но обрабатывающих по-разному.
+
+function printInfo(m: Model) {
+    console.log(m.getInfo());
+}
+
+printInfo(carX1); // Вызовет getInfo() из Car — это полиморфизм
+
+
+// TypeOf позволяет получить тип переменной
+let hello = "Привет";
+
+// С помощью TypeOf мы можем выполнить проверку 
+
+if (typeof hello == 'string') {
+    // ....
+}
+
+// И присвоить этот тип другой переменной 
+// Сделать переменную other с таким же типом как у a
+let other: typeof hello = "other тоже строка";
+
+// KeyOf: используется для создания типа, 
+// который может принимать значение только из ключей другого типа. 
+type Coord = {
+    latitude: number,
+    longitude: number
+}
+
+// Позволит переменной K принимать значения latitude или longitude
+type K = keyof Coord;
+
+// можно использовать только 'latitude' и 'longitude'
+let y: K = 'latitude';
+let z: K = 'longitude';
+
+// null - это тип, указывающий на отсутствие значения
+// Использование методов строки напрямую вызовет ошибку
+// void - значит ничего не возвращается
+function logging(a: string | null): void {
+    // 1 способ проверки: Optional chaining
+    a?.toLowerCase();
+    // 2 способ проверки: явная проверка на null
+    if (a !== null) {
+        a.toLowerCase();
+    }
+    // ! означает, что a будет точно существовать (это рисковано)
+    // Лучше вместо этого кода сделать корректную проверку
+    a!.toLowerCase();
+}
+
+// BigInt используется для работы с очень большими числами
+const big: bigint = BigInt(100);
+
+// Symbol позволяют создать уникальный идентификатор из строк или объектов
+const uniqSymbol: symbol = Symbol('alskjfonq');
