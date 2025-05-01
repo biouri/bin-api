@@ -18,6 +18,7 @@
 2.10. Другие типы и возможности
 3.1. Обзор архитектуры
 3.2. Класс приложения
+3.3. Logger
 
 ## Git
 
@@ -46,6 +47,7 @@ git commit -m "Add TypeScript and tsconfig.json"
 git commit -m "Add Base/Union Types, Aliases, Interfaces, Enums, Generics"
 git commit -m "Add Classes, KeyOf, TypeOf, Null, Void, BigInt, Symbol"
 git commit -m "Add App Class with Layered Architecture"
+git commit -m "Add Logger and Simple Dependency Injection DI"
 ```
 
 ## 1.1. Простой http сервер
@@ -2259,4 +2261,286 @@ npm run build
 npm start
 http POST http://localhost:8000/users/login
 http POST http://localhost:8000/users/register
+```
+
+## 11.3. Logger
+
+Структуризация по доменным областям.
+В проекте будем использовать структуру папок по доменным областям. Например, вся работа с пользователями находится в папке `/users` (все, что касается контроллера, сервиса или работы с репозиторием пользователей). Все что относится к логированию будет расположено в папке `/logger`.
+
+1. Логирование:
+
+   - Создание отдельной папки для логера в структуре проекта `/logger`.
+   - Использование типизированной библиотеки `ts-log` для логирования (возможно использование любой другой библиотеки). Класс разрабатывается так, чтобы его можно было легко заменить на другую реализацию.
+
+```shell
+   npm i tslog
+```
+
+2. Разработка Логгер-Сервиса:
+
+   - Разработка класса `LoggerService` для управления логированием.
+   - Реализация методов `log`, `error`, и `warn` для различных уровней логирования.
+   - Приватное инкапсулирование экземпляра логгера для скрытия внешних деталей реализации и настроек.
+
+`src\logger\logger.service.ts`
+
+```typescript
+import { Logger, ILogObj } from "tslog";
+
+// Абстракция логгера скрывает настройки конфигурации от пользователя
+// Также имеется возможность дополнять функционал и расширять методы логгера
+// например, отправка сообщений в другие сервисы: sentry / rollbar
+export class LoggerService {
+  public logger: Logger<ILogObj>;
+
+  constructor() {
+    // В новой версии tslog конфигурирование логов происходит через шаблонную строку
+    const loggerTemplate =
+      "{{yyyy}}-{{mm}}-{{dd}} {{hh}}:{{MM}}:{{ss}} {{logLevelName}}: ";
+    // Создание логгера
+
+    this.logger = new Logger({
+      prettyLogTemplate: loggerTemplate,
+    });
+  }
+
+  // log принимает аргументы неизвестного типа
+  public log(...args: unknown[]) {
+    this.logger.info(...args);
+  }
+
+  public error(...args: unknown[]) {
+    // Возможны дополнительные Side эффекты:
+    // например, отправка в sentry / rollbar
+    this.logger.error(...args);
+  }
+
+  public warn(...args: unknown[]) {
+    this.logger.warn(...args);
+  }
+}
+```
+
+3. Преимущества Абстракции Логгер-Сервиса:
+
+   - Удобное управление конфигурациями логирования.
+   - Возможность добавления дополнительных сайд-эффектов (напр., интеграция с системами уведомлений).
+   - Расширяемость и возможность легкой замены базового логгера на другой.
+
+4. Внедрение Зависимостей (Dependency Injection, DI):
+
+   - Проблемы статичного подхода к вызову методов логирования. В данном случае, например при тестировании, потребуется заменять `import` во всех файлах проекта, где используется класс `LoggerService`. Невозможно будет отдельно провести тестирование / мок-тестирование.
+   - Пример простейшего DI посредством передачи экземпляра `LoggerService` через конструктор. Необходимо создать экземпляр `LoggerService` в котором нет статических методов.
+   - Описание сложностей с глубоким внедрением зависимости и их решении через DI.
+
+`src\app.ts`
+
+```typescript
+import express, { Express } from "express";
+import { userRouter } from "./users/users";
+import { Server } from "http";
+import { LoggerService } from "./logger/logger.service";
+
+export class App {
+  app: Express; // Интерфейс приложения Express
+  server: Server; // Используется стандартный 'node:http'
+  port: number; // Порт может быть конфигурируемым
+  logger: LoggerService;
+
+  // Реализация конструктора для будущих зависимостей
+  constructor(logger: LoggerService) {
+    this.app = express(); // Создание экземпляра Express
+    this.port = 8000; // Порт по умолчанию 8000
+
+    // Не рекомендуется создавать инстанс в данном конструкторе поскольку
+    // мы будем привязаны к единственному LoggerService() и это
+    // не позволит изменить реализацию LoggerService() при тестировании
+    // this.logger = new LoggerService();
+
+    // Инстанс логгера передается как параметр конструктора
+    // Логгер создается снаружи данного класса и внедряется как зависимость
+    this.logger = logger; // Рекомендуется получить инстанс извне как зависимость
+  }
+
+  // Метод инициализации Маршрутов Routes
+  useRoutes() {
+    this.app.use("/users", userRouter);
+  }
+
+  // Инициализация приложения при запуске
+  // Это публичный метод, чтобы кто-то мог запустить его
+  // App в перспективе можно отделить архитектурно от сервера Express
+  // На текущий момент корневой класс App запускает сервер Express
+  public async init() {
+    // Запуск в правильном порядке
+    // 1. Middleware (на данном этапе отсутствует)
+    // 2. Routes Маршруты
+    // 3. Exception Filters (на данном этапе отсутствует)
+
+    // На текущий момент есть только Инициализация Маршрутов
+    this.useRoutes();
+    // Создание сервера
+    this.server = this.app.listen(this.port);
+    // В данном месте будет добавлено логгирование
+    this.logger.log(`Сервер запущен на http://localhost:${this.port}`);
+  }
+}
+```
+
+Изменения в `src\main.ts`
+
+```typescript
+import { App } from "./app";
+import { LoggerService } from "./logger/logger.service";
+
+async function bootstrap() {
+  // Внедрение Зависимостей (Dependency Injection, DI)
+  // Внедряем в App через конструктор зависимость от другого сервиса
+  // В данном месте можно легко подменить реализацию LoggerService()
+  const app = new App(new LoggerService()); // Создание приложения
+  await app.init(); // Инициализация приложения
+}
+
+// Точка входа в приложение
+bootstrap();
+```
+
+5. Запуск и Проверка Работоспособности:
+
+   - Запуск приложения и проверка формата логов.
+   - Возможные улучшения системы логирования и внедрения зависимостей.
+
+```shell
+npm run build
+npm start
+http POST http://localhost:8000/users/login
+http POST http://localhost:8000/users/register
+```
+
+С добавлением логгирования изменился формат сообщений, появилось время и тип сообщения:
+
+```log
+> bin-api@1.0.0 start
+> node ./dist/main.js
+
+2025-05-01 10:07:37 INFO: Сервер запущен на http://localhost:8000
+```
+
+### Что такое внедрение зависимостей (DI)?
+
+Внедрение зависимостей — это паттерн, при котором класс или функция получают нужные зависимости (например, логгер, БД, API-клиент) снаружи, а не создают их внутри себя.
+
+✅ Пример правильного подхода:
+
+```ts
+class MyService {
+  constructor(private readonly logger: LoggerService) {}
+
+  run() {
+    this.logger.log("Starting...");
+  }
+}
+```
+
+Таким образом:
+Класс `MyService` не зависит напрямую от реализации `LoggerService`.
+Мы можем легко подменить логгер при тестировании или в разных окружениях.
+
+### Почему не стоит использовать статические методы?
+
+```ts
+class StaticLogger {
+  static log(message: string) {
+    console.log(message);
+  }
+}
+```
+
+#### Минусы статических методов:
+
+1. Нет возможности подменить зависимость.
+2. При тестировании нельзя заменить `StaticLogger.log()` на заглушку или мок.
+3. Жесткая связанность (tight coupling).
+4. Весь код, использующий `StaticLogger`, напрямую зависит от него.
+5. Нет возможности конфигурировать поведение.
+6. Статические классы плохо расширяются, например, для разных уровней логирования, фильтрации, форматирования или отправки в `Sentry`.
+
+### Влияние на тестирование
+
+В подходе c DI можно сделать так:
+
+```ts
+const mockLogger = {
+  log: jest.fn(),
+  error: jest.fn(),
+  warn: jest.fn(),
+};
+
+const service = new MyService(mockLogger as unknown as LoggerService);
+```
+
+Таким образом:
+
+- легко мокируется логгер;
+- можно проверять, вызывался ли log() или error() в нужных ситуациях;
+- отделяется тест от настоящего вывода в консоль или Sentry.
+
+### Как улучшить текущий `LoggerService`
+
+1. Создать интерфейс логгера:
+
+```ts
+export interface ILogger {
+  log(...args: unknown[]): void;
+  error(...args: unknown[]): void;
+  warn(...args: unknown[]): void;
+}
+```
+
+2. Использовать его:
+
+```ts
+export class LoggerService implements ILogger {
+  private readonly logger: Logger<ILogObj>;
+
+  constructor() {
+    this.logger = new Logger({
+      prettyLogTemplate:
+        "{{yyyy}}-{{mm}}-{{dd}} {{hh}}:{{MM}}:{{ss}} {{logLevelName}}: ",
+    });
+  }
+
+  log(...args: unknown[]): void {
+    this.logger.info(...args);
+  }
+
+  error(...args: unknown[]): void {
+    this.logger.error(...args);
+  }
+
+  warn(...args: unknown[]): void {
+    this.logger.warn(...args);
+  }
+}
+```
+
+Теперь можно внедрять его через интерфейс — это даст максимум гибкости.
+
+### Как внедрять в приложение?
+
+В простом случае — вручную:
+
+```ts
+const logger = new LoggerService();
+const service = new MyService(logger);
+```
+
+В более сложных проектах (например, NestJS или InversifyJS) — через DI контейнер:
+
+```ts
+@injectable()
+class MyService {
+  constructor(@inject(LoggerService) private readonly logger: ILogger) {}
+}
 ```
