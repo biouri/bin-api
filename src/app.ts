@@ -1,16 +1,20 @@
 import express, { Express } from 'express';
-import { userRouter } from './users/users';
 import { Server } from 'http';
 import { LoggerService } from './logger/logger.service';
+import { UserController } from './users/users.controller';
 
 export class App {
     app: Express; // Интерфейс приложения Express
     server: Server; // Используется стандартный 'node:http'
     port: number; // Порт может быть конфигурируемым
     logger: LoggerService; // Как зависимость
+	userController: UserController; // Как зависимость
 
     // Реализация конструктора для будущих зависимостей
-	constructor(logger: LoggerService) {
+	constructor(
+        logger: LoggerService,
+        userController: UserController
+    ) {
         this.app = express(); // Создание экземпляра Express
         this.port = 8000; // Порт по умолчанию 8000
 
@@ -22,11 +26,12 @@ export class App {
         // Инстанс логгера передается как параметр конструктора
         // Логгер создается снаружи данного класса и внедряется как зависимость
         this.logger = logger; // Рекомендуется получить инстанс извне как зависимость
+        this.userController = userController; // Получить инстанс извне как зависимость
 	}
 
     // Метод инициализации Маршрутов Routes
 	useRoutes() {
-		this.app.use('/users', userRouter);
+		this.app.use('/users', this.userController.router); // Используем контроллер
 	}
 
     // Инициализация приложения при запуске

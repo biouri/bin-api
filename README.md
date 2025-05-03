@@ -19,6 +19,8 @@
 3.1. Обзор архитектуры
 3.2. Класс приложения
 3.3. Logger
+3.4. Базовый класс контроллера BaseController
+3.5. Контроллер пользователей UserController
 
 ## Git
 
@@ -48,6 +50,7 @@ git commit -m "Add Base/Union Types, Aliases, Interfaces, Enums, Generics"
 git commit -m "Add Classes, KeyOf, TypeOf, Null, Void, BigInt, Symbol"
 git commit -m "Add App Class with Layered Architecture"
 git commit -m "Add Logger and Simple Dependency Injection DI"
+git commit -m "Add BaseController + UserController"
 ```
 
 ## 1.1. Простой http сервер
@@ -2543,4 +2546,340 @@ const service = new MyService(logger);
 class MyService {
   constructor(@inject(LoggerService) private readonly logger: ILogger) {}
 }
+```
+
+## 3.4. Базовый класс контроллера BaseController
+
+Создание общего базового контроллера для последующего наследования.
+
+1. Общая концепция:
+   Разработка базового контроллера, содержащего общую функциональность для наследования специфическими контроллерами.
+
+2. Задача:
+   Позволить наследование базовой функциональности и добавление специфических реализаций.
+
+### Реализация Базового Контроллера
+
+1. Создание класса `BaseController`:
+   Определяем как абстрактный класс `abstract class BaseController {...}` для предотвращения прямого инстанцирования.
+   В конструкторе класса интегрируем логгер для мониторинга инициализации.
+
+В TypeScript, если используются модификаторы доступа (private, public, protected) непосредственно в параметрах конструктора, то переменная logger автоматически создаётся как приватное свойство класса. Её не нужно дополнительно объявлять в теле класса — TypeScript сам делает это:
+
+```TypeScript
+constructor(private logger: LoggerService) { ... }
+```
+
+Использование модификатора в параметрах конструктора — это сокращённая запись.
+Эквивалентная запись вручную выглядела бы так:
+
+```TypeScript
+export abstract class BaseController {
+  private logger: LoggerService;
+
+  constructor(logger: LoggerService) {
+    this.logger = logger;
+  }
+}
+```
+
+2. Роутинг:
+   Интеграция экспресс-роутера для отдельного контроллера.
+   Создание приватного экземпляра роутера и метода его получения.
+
+3. Метод `bindRoutes`:
+   Защищенный метод для биндинга роутов.
+   Принимает массив роутов и связывает их с функциями в контроллере.
+
+4. Определение интерфейса `IControllerRoute`:
+   Описывает путь, функцию обработки запроса и метод HTTP (GET, POST, DELETE, PATCH, PUT).
+
+`src\common\route.interface.ts`
+
+```TypeScript
+import { NextFunction, Request, Response, Router } from 'express';
+
+export interface IControllerRoute {
+	path: string;
+	// Стандартная функция Express
+	func: (req: Request, res: Response, next: NextFunction) => void;
+	// Перечисляем все допустимые методы
+	// Возможна запись ниже, но без гарантии соответствия возможным методам
+	method: 'get' | 'post' | 'delete' | 'patch' | 'put';
+}
+```
+
+5. Типизация методов HTTPS:
+   Улучшение стабильности кода через использование TypeScript, чтобы избежать возможных ошибок в рантайме за счёт строгой типизации методов запроса.
+
+`src\common\route.interface.ts`
+
+```TypeScript
+import { NextFunction, Request, Response, Router } from 'express';
+
+// Роут контроллера
+export interface IControllerRoute {
+	path: string;
+	// Стандартная функция Express
+	func: (req: Request, res: Response, next: NextFunction) => void;
+	// Перечисляем все допустимые методы
+	// Pick - это утилитарный тип, который берет из интерфейса значения
+	// и создает из них новый интерфейс:
+	// из Router берем только 'get' | 'post' | 'delete' | 'patch' | 'put'
+	// keyof используется чтобы из интерфейса Pick<...> получить ключи
+	method: keyof Pick<Router, 'get' | 'post' | 'delete' | 'patch' | 'put'>;
+	// Возможна запись ниже, но без гарантии соответствия возможным методам
+  // Ошибка в написании метода приведет к ошибке в Runtime
+	// method: 'get' | 'post' | 'delete' | 'patch' | 'put';
+}
+```
+
+6. Связывание контекста:
+   Адресация проблемы потери контекста `this` через `.bind(this)`, гарантируя, что контекст внутри функций сохраняется.
+
+```TypeScript
+	// bindRoutes() принимает массив роутов
+	// и связывает их с функциями в контроллере
+	// protected т.к. мы можем вызывать из наследников
+	protected bindRoutes(routes: IControllerRoute[]) {
+		for (const route of routes) {
+			// Логгируем все биндинги, для тестирования
+			this.logger.log(`[${route.method}] ${route.path}`);
+			// Чтобы не терять контекст выполнения функции
+			// Сохраненяем контекст this и связываем с функцией
+			// В данном случае это контекст контроллера
+			const handler = route.func.bind(this);
+			this.router[route.method](route.path, handler);
+		}
+	}
+```
+
+7. Утилитарные методы ответа:
+   Создание оберток для удобной отправки HTTP-ответов, например, методы для создания (`201 Created`) и успешного выполнения (`200 OK`) ответов.
+
+Полный код базового контроллера `src\common\base.controller.ts`
+
+```TypeScript
+import { Response, Router } from 'express';
+import { LoggerService } from '../logger/logger.service';
+import { IControllerRoute } from './route.interface';
+export { Router } from 'express';
+
+export abstract class BaseController {
+	private readonly _router: Router; // Доступ только через getter
+
+	// В конструктор необходимо явно передать LoggerService
+	// Logger используется чтобы показать что выполена инициализация
+	constructor(private logger: LoggerService) {
+		// Внутри Express есть Router() который позволяет создать инстанс
+		// роутера для отдельного контроллера
+		this._router = Router();
+	}
+
+	get router() {
+		return this._router;
+	}
+
+	public send<T>(res: Response, code: number, message: T) {
+		res.type('application/json')
+		return res.status(code).json(message);
+	}
+
+	public ok<T>(res: Response, message: T) {
+		return this.send<T>(res, 200, message);
+	}
+
+	public created(res: Response) {
+		return res.sendStatus(201);
+	}
+
+	// bindRoutes() принимает массив роутов
+	// и связывает их с функциями в контроллере
+	// protected т.к. мы можем вызывать из наследников
+	protected bindRoutes(routes: IControllerRoute[]) {
+		for (const route of routes) {
+			// Логгируем все биндинги, для тестирования
+			this.logger.log(`[${route.method}] ${route.path}`);
+			// Чтобы не терять контекст выполнения функции
+			// Сохраненяем контекст this и связываем с функцией
+			// В данном случае это контекст контроллера
+			const handler = route.func.bind(this);
+			this.router[route.method](route.path, handler);
+		}
+	}
+
+	// Приблизительный Шаблон bindRoutes
+	// Вместо any нужно использовать типизацию
+	// protected bindRoutesTemplate(routes: any[]) {
+	// 	// В цикле пройти по всем роутам и выполнить
+	// 	this.router.get('path', func);
+	// }
+}
+```
+
+## 3.5. Контроллер пользователей
+
+Предыдущий код `src\users\users.ts` без контроллера (для сравнения):
+
+```TypeScript
+import express from 'express';
+
+// Создание роутера
+const userRouter = express.Router();
+
+// Дополнительный обработчик роутера
+// Будет срабатывать для всех запросов маршрута /users/...
+userRouter.use((req, res, next) => {
+	console.log('Обработчик users');
+	next();
+});
+
+userRouter.post('/login', (req, res) => {
+	res.send('login');
+});
+
+userRouter.post('/register', (req, res) => {
+	res.send('register');
+});
+
+export { userRouter };
+```
+
+Реализация UserController, расширяющего базовый контроллер, для управления регистрацией и логином пользователя.
+
+1. Шаги реализации:
+
+   - Создание `src\users\users.controller.ts`
+   - Экспортировать класс UserController, расширяющий BaseController.
+   - В конструкторе класса вызвать метод `bindRoutes()` для привязки маршрутов регистрации и логина.
+
+2. Методы UserController
+
+   - Определить два метода: `login` и `register`.
+   - В каждом методе обрабатывать запрос (request), ответ (response) и следующий обработчик (next) из Express.js.
+   - Использовать методы базового класса для стандартных HTTP-ответов, например, `this.ok(response, message)`.
+
+3. Регистрация маршрутов
+
+   - В методе `bindRoutes()`, привязать пути `/register` и `/login` к соответствующим методам класса с использованием POST-запросов.
+
+Файл `src\users\users.controller.ts`:
+
+```TypeScript
+import { NextFunction, Request, Response } from 'express';
+import { BaseController } from '../common/base.controller';
+import { LoggerService } from '../logger/logger.service';
+
+export class UserController extends BaseController {
+	constructor(
+		logger: LoggerService
+	) {
+		super(logger);
+		this.bindRoutes([
+			{ path: '/register', method: 'post', func: this.register },
+			{ path: '/login', method: 'post', func: this.login },
+		])
+	}
+
+	login(req: Request, res: Response, next: NextFunction) {
+		// res используется для передачи контекста
+		// ok утилитарный метод базового контроллера
+		this.ok(res, 'Login...');
+	}
+
+	register(req: Request, res: Response, next: NextFunction) {
+		// res используется для передачи контекста
+		// ok утилитарный метод базового контроллера
+		this.ok(res, 'Register...');
+	}
+}
+```
+
+4. Интеграция с приложением
+
+   - Добавить экземпляр UserController в основной файл приложения (App.ts) через систему маршрутизации.
+   - Применить зависимости, такие как LoggerService, для передачи в конструктор BaseController.
+
+### Внедрение в App.ts:
+
+1. Удалить старый файл `src\users\users.ts` с пользовательскими маршрутами.
+2. Организовать `dependency injection`, передав экземпляр `UserController` в конструктор приложения.
+3. Использовать `router` экземпляра `UserController` в системе маршрутизации приложения.
+
+Старый код `src\app.ts`:
+
+```TypeScript
+    // Метод инициализации Маршрутов Routes
+	useRoutes() {
+		this.app.use('/users', userRouter);
+	}
+```
+
+Новый код `src\app.ts`:
+
+```TypeScript
+    // Метод инициализации Маршрутов Routes
+	useRoutes() {
+		this.app.use('/users', this.userController.router); // Используем контроллер
+	}
+```
+
+Измененный код D:\Projects\node_abc\bin-api\src\main.ts
+
+```TypeScript
+import { App } from './app';
+import { LoggerService } from './logger/logger.service';
+import { UserController } from './users/users.controller';
+
+async function bootstrap() {
+	// Внедрение Зависимостей (Dependency Injection, DI)
+	// Внедряем в App через конструктор зависимость от другого сервиса
+	// В данном месте можно легко подменить реализацию LoggerService()
+	const logger = new LoggerService();
+	// Создание приложения с двумя зависимостями
+	// 1. new LoggerService()
+	// 2. new UserController(logger)
+	const app = new App(logger, new UserController(logger));
+	await app.init(); // Инициализация приложения
+}
+
+// Точка входа в приложение
+bootstrap();
+```
+
+### Проверка работы:
+
+1. Сборка и запуск приложения для валидации работы `UserController`.
+2. Использование инструментов для тестирования API (например, Insomnia) для отправки запросов на регистрацию и логин.
+3. Проверка корректности ответов сервера на эти запросы.
+
+```shell
+npm run build
+npm start
+http POST http://localhost:8000/users/login
+http POST http://localhost:8000/users/register
+```
+
+```text
+> npm start
+
+> bin-api@1.0.0 start
+> node ./dist/main.js
+
+2025-05-03 09:54:14 INFO: [post] /register
+2025-05-03 09:54:14 INFO: [post] /login
+2025-05-03 09:54:14 INFO: Сервер запущен на http://localhost:8000
+
+> http POST http://localhost:8000/users/login
+
+HTTP/1.1 200 OK
+Connection: keep-alive
+Content-Length: 10
+Content-Type: application/json; charset=utf-8
+Date: Sat, 03 May 2025 09:54:49 GMT
+ETag: W/"a-yNswNkdS3YyYvQ68R3JbH2iJmqI"
+Keep-Alive: timeout=5
+X-Powered-By: Express
+
+"Login..."
 ```
