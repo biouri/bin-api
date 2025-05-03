@@ -2,6 +2,7 @@ import express, { Express } from 'express';
 import { Server } from 'http';
 import { LoggerService } from './logger/logger.service';
 import { UserController } from './users/users.controller';
+import { ExceptionFilter } from './errors/exception.filter';
 
 export class App {
     app: Express; // Интерфейс приложения Express
@@ -9,11 +10,13 @@ export class App {
     port: number; // Порт может быть конфигурируемым
     logger: LoggerService; // Как зависимость
 	userController: UserController; // Как зависимость
+    exceptionFilter: ExceptionFilter; // Как зависимость
 
     // Реализация конструктора для будущих зависимостей
 	constructor(
         logger: LoggerService,
-        userController: UserController
+        userController: UserController,
+        exceptionFilter: ExceptionFilter
     ) {
         this.app = express(); // Создание экземпляра Express
         this.port = 8000; // Порт по умолчанию 8000
@@ -27,11 +30,18 @@ export class App {
         // Логгер создается снаружи данного класса и внедряется как зависимость
         this.logger = logger; // Рекомендуется получить инстанс извне как зависимость
         this.userController = userController; // Получить инстанс извне как зависимость
-	}
+        this.exceptionFilter = exceptionFilter; // Получить инстанс извне как зависимость
+    }
 
     // Метод инициализации Маршрутов Routes
 	useRoutes() {
 		this.app.use('/users', this.userController.router); // Используем контроллер
+	}
+
+    // Можеть быть несколько Exception Filters
+   	useExceptionFilters() {
+        // Обязательно привязываем контекст фильтра this.exceptionFilter
+		this.app.use(this.exceptionFilter.catch.bind(this.exceptionFilter));
 	}
 
     // Инициализация приложения при запуске
@@ -42,10 +52,12 @@ export class App {
         // Запуск в правильном порядке
         // 1. Middleware (на данном этапе отсутствует)
         // 2. Routes Маршруты
-        // 3. Exception Filters (на данном этапе отсутствует)
+        // 3. Exception Filters
 		
-        // На текущий момент есть только Инициализация Маршрутов
+        // На текущий момент есть Инициализация Маршрутов + Exception Filters
+        // Важен порядок следования
         this.useRoutes();
+        this.useExceptionFilters();
         // Создание сервера
 		this.server = this.app.listen(this.port);
         // В данном месте будет добавлено логгирование

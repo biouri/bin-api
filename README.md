@@ -21,6 +21,7 @@
 3.3. Logger
 3.4. Базовый класс контроллера BaseController
 3.5. Контроллер пользователей UserController
+3.6. Обработка ошибок ExceptionFilter
 
 ## Git
 
@@ -51,6 +52,7 @@ git commit -m "Add Classes, KeyOf, TypeOf, Null, Void, BigInt, Symbol"
 git commit -m "Add App Class with Layered Architecture"
 git commit -m "Add Logger and Simple Dependency Injection DI"
 git commit -m "Add BaseController + UserController"
+git commit -m "Add Error Handlers + Exception Filters"
 ```
 
 ## 1.1. Простой http сервер
@@ -2882,4 +2884,264 @@ Keep-Alive: timeout=5
 X-Powered-By: Express
 
 "Login..."
+```
+
+## 3.6. Обработка ошибок
+
+Создание и использование фильтров исключений в API.
+Созданию фильтров исключений для обработки ошибок с определенным статус-кодом и отправки соответствующих ответов пользователям или сервисам, обращающимся к API.
+
+### Шаги реализации:
+
+1. Инициализация фильтров:
+   Создание инфраструктуры для фильтров исключений по аналогии с маршрутизацией (`useRoutes`).
+   Реализация `useExceptionFilters` для подключения фильтров после роутов.
+
+`src\app.ts`
+
+```TypeScript
+  ...
+ 	useExceptionFilters() {
+		...
+	}
+
+	public async init() {
+        // Запуск в правильном порядке
+        // 1. Middleware (на данном этапе отсутствует)
+        // 2. Routes Маршруты
+        // 3. Exception Filters
+
+        // На текущий момент есть Инициализация Маршрутов + Exception Filters
+        // Важен порядок следования
+        this.useRoutes();
+        this.useExceptionFilters();
+        ...
+	}
+  ...
+```
+
+2. Структура фильтра:
+   В папке `errors` создается класс для фильтра исключений. Например, `ExceptionFilter`.
+   Фильтр должен содержать метод `catch`, принимающий ошибку, запрос, ответ и функцию `next`.
+
+3. Логирование и обработка исключений:
+   Интеграция сервиса логирования в конструкторе фильтра.
+   Используется метод `catch` для логирования ошибок и отправки ответов, включая статус-код.
+
+4. Унификация через интерфейс:
+   Определение интерфейса `IExceptionFilter` с методом `catch`, чтобы стандартизировать фильтры исключений.
+
+`src\errors\exception.filter.interface.ts`
+
+```TypeScript
+import { NextFunction, Request, Response } from 'express';
+
+// Общий интерфейс для всех фильтров в приложении содержит метод catch
+export interface IExceptionFilter {
+	catch: (err: Error, req: Request, res: Response, next: NextFunction) => void;
+}
+```
+
+5. Гибкая обработка статус-кодов:
+   Реализация класса `HttpError`, расширяющего стандартный класс ошибки, для включения статус-кода и сообщения об ошибке.
+   Фильтры теперь могут возвращать соответствующие статус-коды, улучшая удобство взаимодействия с API.
+
+`src\errors\http-error.class.ts`
+
+```TypeScript
+// HTTPError это расширенный класс от обычной ошибки Error
+// Обычная практика создания кастомных классов ошибок
+// Дополнительно добавляются statusCode и context?
+export class HTTPError extends Error {
+	statusCode: number;
+	context?: string;
+
+	constructor(statusCode: number, message: string, context?: string) {
+		super(message);
+		this.statusCode = statusCode;
+		this.message = message;
+		this.context = context;
+	}
+}
+```
+
+Полная версия `src\errors\exception.filter.ts`
+
+```TypeScript
+import { NextFunction, Request, Response } from 'express';
+import { LoggerService } from '../logger/logger.service';
+import { IExceptionFilter } from './exception.filter.interface';
+import { HTTPError } from './http-error.class';
+
+// Все фильтры для единообразия реализуют общий интерфейс IExceptionFilter
+// Чтобы был стандартный метод catch, которым можно что-то обработать
+export class ExceptionFilter implements IExceptionFilter {
+	logger: LoggerService;
+	constructor(logger: LoggerService) {
+		this.logger = logger;
+	}
+
+	// Метод catch, который ловит ошибку err: Error | HTTPError
+	// HTTPError это расширенный класс от обычной ошибки Error
+	// В HTTPError содержится дополнительная информация с кодом ошибки
+	// HTTPError передаются из контроллера и более информативны для пользователей
+	catch(err: Error | HTTPError, req: Request, res: Response, next: NextFunction) {
+		if (err instanceof HTTPError) {
+			// Логгирование ошибки HTTPError (ошибка имеет контекст и сообщение)
+			this.logger.error(`[${err.context}] Ошибка ${err.statusCode}: ${err.message}`);
+			// Ответ пользователю, например 401 - неавторизован, 403 - недостаточно данных
+			res.status(err.statusCode).send({ err: err.message });
+		} else {
+			// Логгирование обычной ошибки (ошибка имеет сообщение)
+			this.logger.error(`${err.message}`);
+			// Ответ пользователю
+			res.status(500).send({ err: err.message });
+		}
+	}
+}
+```
+
+6. Интеграция и тестирование:
+   Интеграция фильтра исключений в приложение, используя `useExceptionFilters`.
+   Тестирование обработки ошибок, имитируя исключения внутри контроллеров и проверяя ответы API.
+
+`src\app.ts`
+
+```TypeScript
+import express, { Express } from 'express';
+import { Server } from 'http';
+import { LoggerService } from './logger/logger.service';
+import { UserController } from './users/users.controller';
+import { ExceptionFilter } from './errors/exception.filter';
+
+export class App {
+    app: Express; // Интерфейс приложения Express
+    server: Server; // Используется стандартный 'node:http'
+    port: number; // Порт может быть конфигурируемым
+    logger: LoggerService; // Как зависимость
+	userController: UserController; // Как зависимость
+    exceptionFilter: ExceptionFilter; // Как зависимость
+
+    // Реализация конструктора для будущих зависимостей
+	constructor(
+        logger: LoggerService,
+        userController: UserController,
+        exceptionFilter: ExceptionFilter
+    ) {
+        this.app = express(); // Создание экземпляра Express
+        this.port = 8000; // Порт по умолчанию 8000
+
+        // Не рекомендуется создавать инстанс в данном конструкторе поскольку
+        // мы будем привязаны к единственному LoggerService() и это
+        // не позволит изменить реализацию LoggerService() при тестировании
+        // this.logger = new LoggerService();
+
+        // Инстанс логгера передается как параметр конструктора
+        // Логгер создается снаружи данного класса и внедряется как зависимость
+        this.logger = logger; // Рекомендуется получить инстанс извне как зависимость
+        this.userController = userController; // Получить инстанс извне как зависимость
+        this.exceptionFilter = exceptionFilter; // Получить инстанс извне как зависимость
+    }
+
+    // Метод инициализации Маршрутов Routes
+	useRoutes() {
+		this.app.use('/users', this.userController.router); // Используем контроллер
+	}
+
+    // Можеть быть несколько Exception Filters
+   	useExceptionFilters() {
+        // Обязательно привязываем контекст фильтра this.exceptionFilter
+		this.app.use(this.exceptionFilter.catch.bind(this.exceptionFilter));
+	}
+
+    // Инициализация приложения при запуске
+    // Это публичный метод, чтобы кто-то мог запустить его
+    // App в перспективе можно отделить архитектурно от сервера Express
+    // На текущий момент корневой класс App запускает сервер Express
+	public async init() {
+        // Запуск в правильном порядке
+        // 1. Middleware (на данном этапе отсутствует)
+        // 2. Routes Маршруты
+        // 3. Exception Filters
+
+        // На текущий момент есть Инициализация Маршрутов + Exception Filters
+        // Важен порядок следования
+        this.useRoutes();
+        this.useExceptionFilters();
+        // Создание сервера
+		this.server = this.app.listen(this.port);
+        // В данном месте будет добавлено логгирование
+		this.logger.log(`Сервер запущен на http://localhost:${this.port}`);
+	}
+}
+```
+
+`src\main.ts`
+
+```TypeScript
+import { App } from './app';
+import { LoggerService } from './logger/logger.service';
+import { UserController } from './users/users.controller';
+import { ExceptionFilter } from './errors/exception.filter';
+
+async function bootstrap() {
+	// Внедрение Зависимостей (Dependency Injection, DI)
+	// Внедряем в App через конструктор зависимость от другого сервиса
+	// В данном месте можно легко подменить реализацию LoggerService()
+	const logger = new LoggerService();
+	// Создание приложения с тремя зависимостями
+	// 1. new LoggerService()
+	// 2. new UserController(logger)
+	// 3. new ExceptionFilter(logger)
+	const app = new App(
+		logger,
+		new UserController(logger),
+		new ExceptionFilter(logger)
+	);
+	await app.init(); // Инициализация приложения
+}
+
+// Точка входа в приложение
+bootstrap();
+```
+
+### Ключевые моменты:
+
+Фильтры исключений позволяют эффективно обрабатывать ошибки и отправлять подходящие ответы.
+Использование интерфейсов и наследования классов обеспечивает гибкость и расширяемость системы обработки ошибок.
+
+```shell
+npm run build
+npm start
+http POST http://localhost:8000/users/login
+http POST http://localhost:8000/users/register
+```
+
+```text
+> npm start
+
+> bin-api@1.0.0 start
+> node ./dist/main.js
+
+2025-05-03 11:51:04 INFO: [post] /register
+2025-05-03 11:51:04 INFO: [post] /login
+2025-05-03 11:51:04 INFO: Сервер запущен на http://localhost:8000
+2025-05-03 11:51:17 ERROR: [login] Ошибка 401: ошибка авторизации
+
+-----------------------------------------------------------------
+
+> http POST http://localhost:8000/users/login
+
+HTTP/1.1 401 Unauthorized
+Connection: keep-alive
+Content-Length: 45
+Content-Type: application/json; charset=utf-8
+Date: Sat, 03 May 2025 11:51:17 GMT
+ETag: W/"2d-ZsKL4B5+lRZUzS8eVsZuDMLJFgI"
+Keep-Alive: timeout=5
+X-Powered-By: Express
+
+{
+    "err": "ошибка авторизации"
+}
 ```
