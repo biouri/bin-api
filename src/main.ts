@@ -3,6 +3,7 @@ import { LoggerService } from './logger/logger.service';
 import { UserController } from './users/users.controller';
 import { ExceptionFilter } from './errors/exception.filter';
 
+// Точка сбора всех зависимостей - Composition Root
 async function bootstrap() {
 	// Внедрение Зависимостей (Dependency Injection, DI)
 	// Внедряем в App через конструктор зависимость от другого сервиса

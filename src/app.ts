@@ -3,18 +3,21 @@ import { Server } from 'http';
 import { LoggerService } from './logger/logger.service';
 import { UserController } from './users/users.controller';
 import { ExceptionFilter } from './errors/exception.filter';
+import { ILogger } from './logger/logger.interface';
 
 export class App {
     app: Express; // Интерфейс приложения Express
     server: Server; // Используется стандартный 'node:http'
     port: number; // Порт может быть конфигурируемым
-    logger: LoggerService; // Как зависимость
+    // logger: LoggerService; // Зависимость - конкретная реализация
+    logger: ILogger; // Зависимость должна удовлетворять контракту/интерфейсу
 	userController: UserController; // Как зависимость
     exceptionFilter: ExceptionFilter; // Как зависимость
 
     // Реализация конструктора для будущих зависимостей
 	constructor(
-        logger: LoggerService,
+        // logger: LoggerService, // Конкретная реализация
+        logger: ILogger, // Используем интрефейс вместо конкретной реализации
         userController: UserController,
         exceptionFilter: ExceptionFilter
     ) {
