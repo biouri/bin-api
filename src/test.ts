@@ -681,3 +681,105 @@ const big: bigint = BigInt(100);
 
 // Symbol позволяют создать уникальный идентификатор из строк или объектов
 const uniqSymbol: symbol = Symbol('alskjfonq');
+
+
+// Декораторы
+console.log('-- Декораторы --');
+// Декоратор класса - это функция, которая принимает один параметр target
+// Класс в JS - это синтаксический сахар
+// Функция Component будет исполняться в момент инициализации класса
+function Component(id: number) {
+    console.log('Init Component...');
+    // Возвращаем другую функцию в процессе инициализации
+    return (target: Function) => {
+        console.log('Run Component...');
+        target.prototype.id = id;
+        // ...
+    }
+}
+
+function Log() {
+    console.log('Init Log...');
+    // Возвращаем другую функцию в процессе инициализации
+    return (target: Function) => {
+        console.log('Run Log...');
+        // ...
+    }
+}
+
+// Декоратор метода принимает параметры:
+// target: Object
+// Ключ свойства (название метода) - propertyKey: string
+// propertyDescriptor: PropertyDescriptor
+function Method(
+    target: Object,
+    propertyKey: string,
+    propertyDescriptor: PropertyDescriptor
+) {
+    // Проверка какой метод вызван
+    console.log(propertyKey);
+    // Изменение метода, который декорируется propertyDescriptor.value
+    // Часто исходная реализация метода сохраняется
+    const oldValue = propertyDescriptor.value;
+    // Пример универсального декоратора для любого кол-ва аргументов
+    propertyDescriptor.value = function (...args: any[]) {
+        // Пример вызов сохраненного исходного метода
+        // oldValue();
+        // ...
+        // Предположим, что неважно что делает исходный метод
+        // Пример умножения на 10 аргумента
+        // Нужно осторожно применять такие операции
+        // Нет гарантии, что args[0] число, рекомендуется выполнять проверку
+        return args[0] * 10;
+    }
+}
+
+// Декоратор свойства
+function Prop(
+    target: Object,
+    propertyKey: string
+) {
+    let value: number;
+
+    const getter = () => {
+        console.log('Getter ...');
+        return value;
+    }
+
+    const setter = (newValue: number) => {
+        console.log('Setter ...');
+        value = newValue;
+    }
+
+    // Переопределение get и set
+    Object.defineProperty(target, propertyKey, {
+        get: getter,
+        set: setter
+    });
+}
+
+// Декоратор параметра метода
+function Param(
+    target: Object,
+    propertyKey: string,
+    index: number
+) {
+    // index - порядковый номер аргумента, начиная с 0
+    console.log(propertyKey, index);
+}
+
+// Пример простого класса с одним свойством
+@Log()
+@Component(1)
+export class User {
+    @Prop id: number;
+
+    @Method
+    updateId(@Param newId: number) {
+        this.id = newId;
+        return this.id;
+    }
+}
+
+console.log(new User().id);
+console.log(new User().updateId(2));

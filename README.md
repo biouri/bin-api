@@ -23,6 +23,7 @@
 3.5. Контроллер пользователей UserController
 3.6. Обработка ошибок ExceptionFilter
 4.1. Разбор DI и IOC
+4.2. Декораторы
 
 ## Git
 
@@ -55,6 +56,7 @@ git commit -m "Add Logger and Simple Dependency Injection DI"
 git commit -m "Add BaseController + UserController"
 git commit -m "Add Error Handlers + Exception Filters"
 git commit -m "Add Dependency Inversion Principle DIP + Inversion of Control IoC"
+git commit -m "Add Decorators"
 ```
 
 ## 1.1. Простой http сервер
@@ -3345,3 +3347,316 @@ export class App {
 
 Сначала происходит регистрация всех инстансов (сервисов) в контейнера, а затем мы вытаскиваем необходимый инстанс чтобы его использовать.
 Service Locator считается больше антипаттерном, поскольку после того, как мы его внедряем, можно легко получать все зависимости и программист начинает `плохокодить` и вытаскивать в рандомных местах любые зависимости вместо того чтобы правильно построить дерево зависимостей.
+
+## 4.2. Декораторы - Decorators
+
+1. Применение декораторов:
+
+   - Декораторы часто используются в TypeScript и представляют собой экспериментальную функцию.
+   - В JavaScript декораторы находятся на стадии предложения, их реализация отличается от TypeScript.
+   - Декораторы используются для метапрограммирования и передачи метаинформации в функции.
+   - Синтаксис декоратора начинается с символа `@`, например: `@component`.
+
+```TypeScript
+@Component
+export class A {
+  // ...
+}
+```
+
+В результате работы декоратора метаинформация о классе перейдет в какую-то функцию, где будет исполняться логика работы этого декоратора.
+
+2. Типы декораторов:
+
+   - Декоратор класса @Component: добавляет метаинформацию для класса.
+   - Декоратор свойства @Prop: применяется к свойствам класса.
+   - Декоратор метода @Method: используется для методов класса.
+   - Декоратор параметра @Param: применяется к параметрам метода класса.
+
+```TypeScript
+@Component
+export class A {
+  @Prop
+  myName: string;
+
+  @Method
+  setName(@Param name: string) {
+    this.myName = name;
+    // ...
+  }
+}
+```
+
+3. Порядок выполнения декораторов:
+
+   Декораторы инициализируются сверху вниз, но исполняются в обратном порядке.
+
+4. Создание декоратора:
+
+   Декораторы являются функциями, которые могут принимать параметры и изменять поведение класса, его свойств или методов.
+
+```TypeScript
+function Logger() {
+  // ...
+}
+
+@Logger
+@Component
+export class A {
+  @Prop
+  myName: string;
+
+  @Method
+  setName(@Param name: string) {
+    this.myName = name;
+    // ...
+  }
+}
+```
+
+5. Примеры использования:
+
+   - Декоратор класса: Может использоваться для логирования или инициализации компонентов.
+   - Декоратор метода: Позволяет модифицировать результаты работы метода, например, умножая возвращаемое значение на 10.
+   - Декоратор свойства: Можно использовать для создания кастомных геттеров и сеттеров.
+   - Декоратор параметра: Предоставляет возможность взаимодействовать с конкретными параметрами методов.
+
+`src\test.js`
+
+```TypeScript
+// Декоратор класса - это функция, которая принимает один параметр target
+// Класс в JS - это синтаксический сахар
+// Функция Component будет исполняться в момент инициализации класса
+function Component(target: Function) {
+    // Используем для тестирования момента инициализации
+    console.log(target);
+}
+
+// Пример простого класса с одним свойством
+@Component
+export class User {
+    id: number;
+
+    updateId(newId: number) {
+        this.id = newId;
+        return this.id;
+    }
+}
+```
+
+Класс еще нигде не используется, но при запуске `test.js` мы получаем target:
+При запуске кода происходит инициализация декоратора, фактически это вызов функции `Component`.
+
+```Text
+[class User]
+```
+
+Декораторы можно использовать с параметрами, например, мы хотим передать начальный id:
+
+```TypeScript
+// Декоратор класса - это функция, которая принимает один параметр target
+// Класс в JS - это синтаксический сахар
+// Функция Component будет исполняться в момент инициализации класса
+function Component(id: number) {
+    console.log('Init Component...');
+    // Возвращаем другую функцию в процессе инициализации
+    return (target: Function) => {
+        console.log('Run Component...');
+        target.prototype.id = id;
+        // ...
+    }
+}
+
+function Log() {
+    console.log('Init Log...');
+    // Возвращаем другую функцию в процессе инициализации
+    return (target: Function) => {
+        console.log('Run Log...');
+        // ...
+    }
+}
+
+// Декоратор метода принимает параметры:
+// target: Object
+// Ключ свойства (название метода) - propertyKey: string
+// propertyDescriptor: PropertyDescriptor
+function Method(
+    target: Object,
+    propertyKey: string,
+    propertyDescriptor: PropertyDescriptor
+) {
+    // Проверка какой метод вызван
+    console.log(propertyKey);
+    // Изменение метода, который декорируется propertyDescriptor.value
+    // Часто исходная реализация метода сохраняется
+    const oldValue = propertyDescriptor.value;
+    // Пример универсального декоратора для любого кол-ва аргументов
+    propertyDescriptor.value = function (...args: any[]) {
+        // Пример вызов сохраненного исходного метода
+        // oldValue();
+        // ...
+        // Предположим, что неважно что делает исходный метод
+        // Пример умножения на 10 аргумента
+        // Нужно осторожно применять такие операции
+        // Нет гарантии, что args[0] число, рекомендуется выполнять проверку
+        return args[0] * 10;
+    }
+}
+
+// Пример простого класса с одним свойством
+@Log()
+@Component(1)
+export class User {
+    id: number;
+
+    @Method
+    updateId(newId: number) {
+        this.id = newId;
+        return this.id;
+    }
+}
+
+console.log(new User().id);
+console.log(new User().updateId(2));
+```
+
+Инициализация декораторов сверху вниз, исполнение в обратном порядке.
+
+```Text
+updateId
+Init Log...
+Init Component...
+Run Component...
+Run Log...
+1
+20
+```
+
+Пример использования декоратора свойства `@Prop`
+и декоратора параметра метода `@Param`
+
+```TypeScript
+
+// Декораторы
+console.log('-- Декораторы --');
+// Декоратор класса - это функция, которая принимает один параметр target
+// Класс в JS - это синтаксический сахар
+// Функция Component будет исполняться в момент инициализации класса
+function Component(id: number) {
+    console.log('Init Component...');
+    // Возвращаем другую функцию в процессе инициализации
+    return (target: Function) => {
+        console.log('Run Component...');
+        target.prototype.id = id;
+        // ...
+    }
+}
+
+function Log() {
+    console.log('Init Log...');
+    // Возвращаем другую функцию в процессе инициализации
+    return (target: Function) => {
+        console.log('Run Log...');
+        // ...
+    }
+}
+
+// Декоратор метода принимает параметры:
+// target: Object
+// Ключ свойства (название метода) - propertyKey: string
+// propertyDescriptor: PropertyDescriptor
+function Method(
+    target: Object,
+    propertyKey: string,
+    propertyDescriptor: PropertyDescriptor
+) {
+    // Проверка какой метод вызван
+    console.log(propertyKey);
+    // Изменение метода, который декорируется propertyDescriptor.value
+    // Часто исходная реализация метода сохраняется
+    const oldValue = propertyDescriptor.value;
+    // Пример универсального декоратора для любого кол-ва аргументов
+    propertyDescriptor.value = function (...args: any[]) {
+        // Пример вызов сохраненного исходного метода
+        // oldValue();
+        // ...
+        // Предположим, что неважно что делает исходный метод
+        // Пример умножения на 10 аргумента
+        // Нужно осторожно применять такие операции
+        // Нет гарантии, что args[0] число, рекомендуется выполнять проверку
+        return args[0] * 10;
+    }
+}
+
+// Декоратор свойства
+function Prop(
+    target: Object,
+    propertyKey: string
+) {
+    let value: number;
+
+    const getter = () => {
+        console.log('Getter ...');
+        return value;
+    }
+
+    const setter = (newValue: number) => {
+        console.log('Setter ...');
+        value = newValue;
+    }
+
+    // Переопределение get и set
+    Object.defineProperty(target, propertyKey, {
+        get: getter,
+        set: setter
+    });
+}
+
+// Декоратор параметра метода
+function Param(
+    target: Object,
+    propertyKey: string,
+    index: number
+) {
+    // index - порядковый номер аргумента, начиная с 0
+    console.log(propertyKey, index);
+}
+
+// Пример простого класса с одним свойством
+@Log()
+@Component(1)
+export class User {
+    @Prop id: number;
+
+    @Method
+    updateId(@Param newId: number) {
+        this.id = newId;
+        return this.id;
+    }
+}
+
+console.log(new User().id);
+console.log(new User().updateId(2));
+```
+
+```shell
+npm run build
+node dist\test.js
+```
+
+```Text
+updateId 0
+updateId
+Init Log...
+Init Component...
+Run Component...
+Setter ...
+Run Log...
+Getter ...
+1
+20
+```
+
+6. Применение в `Dependency Injection (DI)`:
+
+   Декораторы обеспечивают эффективный механизм для реализации системы DI, позволяя определять и управлять зависимостями в приложениях.
