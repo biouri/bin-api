@@ -24,6 +24,7 @@
 3.6. Обработка ошибок ExceptionFilter
 4.1. Разбор DI и IOC
 4.2. Декораторы
+4.3. Metadata Reflection
 
 ## Git
 
@@ -57,6 +58,7 @@ git commit -m "Add BaseController + UserController"
 git commit -m "Add Error Handlers + Exception Filters"
 git commit -m "Add Dependency Inversion Principle DIP + Inversion of Control IoC"
 git commit -m "Add Decorators"
+git commit -m "Add Metadata Reflection"
 ```
 
 ## 1.1. Простой http сервер
@@ -3660,3 +3662,230 @@ Getter ...
 6. Применение в `Dependency Injection (DI)`:
 
    Декораторы обеспечивают эффективный механизм для реализации системы DI, позволяя определять и управлять зависимостями в приложениях.
+
+## 4.3. Metadata Reflection
+
+1. Metadata Reflection
+
+   - Основа: `Metadata Reflection` является ключевой составляющей систем Dependency Injection в таких фреймворках, как `Inversify`.
+   - Библиотека `Reflect Metadata`: Используется для реализации `Metadata Reflection`, позволяет работать с метаданными объектов. Библиотека `Reflect Metadata` используется в Nest.js и других фреймворках.
+
+2. Работа с Reflect Metadata
+
+- Определение метаданных: Используется `Reflect.defineMetadata` для сохранения метаданных с ключом `a` и значением `1` на определенном таргете (класс, метод). Важно: ключ и значение относятся к определенному `target`! В качестве `target` может быть класс, метод и т.д. По сути мы сохраняем в некотором объекте связь между `target` и дополнительными метаданными.
+
+```TypeScript
+Reflect.defineMetadata('a', 1, target);
+```
+
+- Получение метаданных: Для извлечения данных используется `Reflect.getMetadata`.
+
+```TypeScript
+const meta = Reflect.getMetadata('a', target); // В meta получим значение 1
+```
+
+- Важность для Dependency Injection: Хранение и получение метаданных позволяет корректно реализовать dependency injection.
+
+Фиксация метаданных может выполняться автоматически для декораторов таких паттернов как:
+
+```Text
+design:type
+design:paramtypes
+design:returntype
+```
+
+Дополнительную информацию `MetaData Proposal - ECMAScript` можно посмотреть на сайте:
+
+https://rbuckton.github.io/reflect-metadata/
+
+Эти методы реализуются в библиотеке `reflect-metadata`
+
+3. Пример и применение в коде
+
+   - Установка Reflect Metadata: Необходимо выполнить `npm install reflect-metadata`.
+   - Создание и использование декораторов: Декораторы определяются с помощью функций, которые манипулируют метаданными через Reflect Metadata.
+
+Используем декоратор @Test для тестирования метаданных
+
+```TypeScript
+import 'reflect-metadata'
+
+@Test
+class C {
+  @Prop prop: mumber;
+
+  @Method
+  method() {
+    // ...
+  }
+}
+```
+
+4. Технические аспекты
+
+   - Конфигурация TypeScript: Необходимо включить поддержку декораторов и метаданных через `tsconfig.json`.
+
+```json
+    /* Enable experimental support for legacy experimental decorators. */
+    "experimentalDecorators": true,
+
+    /* Emit design-type metadata for decorated declarations in source files. */
+    "emitDecoratorMetadata": true,
+```
+
+`emitDecoratorMetadata` - параметр, который необходим для проверки типов в Runtime, без включения этого параметра мы полностью потеряем информацию о типах при компиляции из TypeScript в JavaScript. Можно проанализировать результат компиляции когда этот параметр включен или выключен. Обязательно необходимо включить этот параметр для правильного использования Dependency Injection в библиотеках базирующихся на использовании метаданных.
+
+- Практическое использование: Как метаданные используются для определения связей между классами и объектами.
+
+Данный код можно использовать для анализа результатов компиляции в JavaScript:
+
+`src\testmeta.ts`
+
+```TypeScript
+// Декоратор
+function Test(target: Function) {
+    // Сохраняем свойства
+    // Используем глобальный NameSpace Reflect
+    // a - ключ
+    // 1 - значение, которое мы передаем и сохраняем
+    // target - цель на которую будем триггериться при сохранении
+    // Сохраняем свойства для target
+    Reflect.defineMetadata('a', 1 ,target);
+
+    // meta - данные, определяются для конкретного объекта
+    // Объектом может служить класс, метод, свойство, параметр
+    // Получение свойства по ключу из цели target
+    const meta = Reflect.getMetadata('a', target);
+    console.log(`meta: ${meta}`);
+}
+
+@Test
+class C {
+  method() {
+    // ...
+  }
+}
+```
+
+5. Получение типа данных в Runtime
+
+   - Информация о типах: С использованием метаданных можно получать информацию о типах данных даже после компиляции TypeScript в JavaScript.
+   - Пример: Как тип данных сохраняется и может быть извлечен через метаданные.
+
+6. Dependency Injection в действии
+
+   - Процесс DI: Процесс Dependency Injection, начиная от определения "инжектируемых" объектов до их использования в приложении.
+   - Связь с Reflect Metadata: Как метаданные используются для управления зависимостями и инъекций.
+
+Для работы DI строится дерево зависимостей, которое используется для дальнейшего управления зависимостями. Для управления деревом зависимостей используется `DI контейнер`.
+
+Тестовый пример: `src\testmeta.ts`
+
+```TypeScript
+// Metadata Reflection
+import 'reflect-metadata';
+
+// DI контейнер
+class Container {
+  private registry = new Map<string, any>();
+
+  register(key: string, target: any) {
+    this.registry.set(key, target);
+  }
+
+  resolve<T>(key: string): T {
+    const target = this.registry.get(key);
+    if (!target) {
+      throw new Error(`No provider registered for key "${key}"`);
+    }
+
+    // Получаем типы параметров конструктора
+    const paramTypes: any[] = Reflect.getMetadata('design:paramtypes', target) || [];
+
+    // Получаем ключи для инъекций (если есть)
+    const injectKeys: (string | undefined)[] = Reflect.getMetadata('custom:injectKeys', target) || [];
+
+    // Рекурсивно резолвим зависимости
+    const params = paramTypes.map((_: any, index: number) => {
+      const depKey = injectKeys[index];
+      if (!depKey) {
+        throw new Error(`Missing injection key for parameter index ${index} in ${target.name}`);
+      }
+      return this.resolve(depKey);
+    });
+
+    return new target(...params);
+  }
+}
+
+// Создаём контейнер
+const container = new Container();
+
+// Декоратор класса
+function Injectable(key: string) {
+  return (target: any) => {
+    container.register(key, target);
+  };
+}
+
+// Декоратор параметра конструктора
+function Inject(key: string) {
+  return (
+    target: Object,
+    propertyKey: string | symbol | undefined,
+    parameterIndex: number
+  ) => {
+    const existingInjectedKeys: (string | undefined)[] =
+      Reflect.getMetadata('custom:injectKeys', target) || [];
+    existingInjectedKeys[parameterIndex] = key;
+    Reflect.defineMetadata('custom:injectKeys', existingInjectedKeys, target);
+  };
+}
+
+// Простой сервис A
+// Декоратор использует ключ KeyA для связи с class A (target)
+// Связь ключ + target необходима для постоения дерева зависимостей
+@Injectable('KeyA')
+class A {
+  method() {
+    console.log('A.method() invoked');
+  }
+}
+
+// Сервис B зависит от A
+// Декоратор использует ключ KeyB для связи с class B (target)
+@Injectable('KeyB')
+class B {
+  // Класс B в конструкторе принимает объект класса A
+  // В данном месте может быть подставлен @Injectable объект,
+  // Автоматически работает механизм DI
+  constructor(@Inject('KeyA') private a: A) {}
+
+  method() {
+    console.log('B.method() invoked');
+    // Вызов метода из зависимости A
+    this.a.method();
+  }
+}
+
+// Пример использования
+
+// Что делает этот пример:
+// @Injectable регистрирует класс в контейнере по ключу.
+// @Inject сохраняет ключ зависимости, соответствующий параметру конструктора.
+
+// Container.resolve:
+// - ищет нужный класс по ключу;
+// - определяет типы его зависимостей;
+// - получает ключи для инъекций;
+// - рекурсивно разрешает все зависимости;
+// - создает экземпляр класса с подставленными зависимостями.
+
+// Можно расширить этот механизм до синглтонов, скоупов,
+// отложенной загрузки и circular dependencies.
+
+const bInstance = container.resolve<B>('KeyB');
+bInstance.method();
+// B.method() invoked
+// A.method() invoked
+```
