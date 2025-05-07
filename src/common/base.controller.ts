@@ -1,14 +1,18 @@
 import { Response, Router } from 'express';
 import { LoggerService } from '../logger/logger.service';
 import { IControllerRoute } from './route.interface';
+import { ILogger } from '../logger/logger.interface';
+import { injectable } from 'inversify';
 export { Router } from 'express';
 
+// Если потомки @injectable, базовый класс также должен быть @injectable
+@injectable()
 export abstract class BaseController {
 	private readonly _router: Router; // Доступ только через getter
 
 	// В конструктор необходимо явно передать LoggerService
 	// Logger используется чтобы показать что выполена инициализация
-	constructor(private logger: LoggerService) {
+	constructor(private logger: ILogger) {
 		// Внутри Express есть Router() который позволяет создать инстанс
 		// роутера для отдельного контроллера
 		this._router = Router();

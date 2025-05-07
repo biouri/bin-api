@@ -4,22 +4,26 @@ import { LoggerService } from './logger/logger.service';
 import { UserController } from './users/users.controller';
 import { ExceptionFilter } from './errors/exception.filter';
 import { ILogger } from './logger/logger.interface';
+import { inject, injectable } from 'inversify';
+import { TYPES } from './types';
 
+@injectable()
 export class App {
     app: Express; // Интерфейс приложения Express
     server: Server; // Используется стандартный 'node:http'
     port: number; // Порт может быть конфигурируемым
     // logger: LoggerService; // Зависимость - конкретная реализация
-    logger: ILogger; // Зависимость должна удовлетворять контракту/интерфейсу
-	userController: UserController; // Как зависимость
-    exceptionFilter: ExceptionFilter; // Как зависимость
+    // logger: ILogger; // Зависимость должна удовлетворять контракту/интерфейсу
+	// userController: UserController; // Как зависимость
+    // exceptionFilter: ExceptionFilter; // Как зависимость
 
     // Реализация конструктора для будущих зависимостей
 	constructor(
         // logger: LoggerService, // Конкретная реализация
-        logger: ILogger, // Используем интрефейс вместо конкретной реализации
-        userController: UserController,
-        exceptionFilter: ExceptionFilter
+        // logger: ILogger, // Используем интрефейс вместо конкретной реализации
+		@inject(TYPES.ILogger) private logger: ILogger,
+		@inject(TYPES.UserController) private userController: UserController,
+		@inject(TYPES.ExceptionFilter) private exceptionFilter: ExceptionFilter
     ) {
         this.app = express(); // Создание экземпляра Express
         this.port = 8000; // Порт по умолчанию 8000
@@ -29,11 +33,12 @@ export class App {
         // не позволит изменить реализацию LoggerService() при тестировании
         // this.logger = new LoggerService();
 
+        // Управление зависимостями полностью перешло к контейнеру inversify
         // Инстанс логгера передается как параметр конструктора
         // Логгер создается снаружи данного класса и внедряется как зависимость
-        this.logger = logger; // Рекомендуется получить инстанс извне как зависимость
-        this.userController = userController; // Получить инстанс извне как зависимость
-        this.exceptionFilter = exceptionFilter; // Получить инстанс извне как зависимость
+        // this.logger = logger; // Рекомендуется получить инстанс извне как зависимость
+        // this.userController = userController; // Получить инстанс извне как зависимость
+        // this.exceptionFilter = exceptionFilter; // Получить инстанс извне как зависимость
     }
 
     // Метод инициализации Маршрутов Routes

@@ -25,6 +25,7 @@
 4.1. Разбор DI и IOC
 4.2. Декораторы
 4.3. Metadata Reflection
+4.4. Внедрение InversifyJS
 
 ## Git
 
@@ -60,6 +61,7 @@ git commit -m "Add Dependency Inversion Principle DIP + Inversion of Control IoC
 git commit -m "Add Decorators"
 git commit -m "Add Metadata Reflection"
 git commit -m "Add Metadata Reflection Example with Strict Typing testmeta.ts"
+git commit -m "Add InversifyJS DI Container + @injectable + @inject"
 ```
 
 ## 1.1. Простой http сервер
@@ -3902,4 +3904,225 @@ const bInstance = container.resolve<B>('KeyB');
 bInstance.method();
 // B.method() invoked
 // A.method() invoked
+```
+
+## 4.4. Внедрение InversifyJS
+
+1. Установка InversifyJS
+
+```shell
+npm install inversify
+```
+
+`package.json`
+
+```json
+{
+  ...
+  "dependencies": {
+    "express": "^5.1.0",
+    "inversify": "^7.5.1",
+  }
+  ...
+}
+```
+
+2. Символы для связывания
+
+   - Создать файл `types.ts` для хранения символов
+   - Символы уникальны и используются для связывания компонентов
+   - Пример символов: `Application`, `LoggerService`, `UserController`, `ExceptionFilter`
+
+`src\types.ts`
+
+Уникальные символы всех компонентов проекта, которые будут связываться:
+
+```TypeScript
+export const TYPES = {
+	Application: Symbol.for('Application'),
+	ILogger: Symbol.for('ILogger'), // Связь через интерфейс, наименование как у интерфеса
+	UserController: Symbol.for('UserController'),
+	ExeptionFilter: Symbol.for('ExceptionFilter')
+}
+```
+
+3. Создание контейнера
+
+   - Использовать `main.ts` для агрегации `Dependency Injection`
+   - Создать контейнер `AppContainer` с помощью `Inversify.js`
+   - Контейнер - это место для хранения и переиспользования биндингов
+
+Код `src\main.ts` до использования Inversify.js
+
+```TypeScript
+import { ExceptionFilter } from './errors/exception.filter';
+
+// Точка сбора всех зависимостей - Composition Root
+async function bootstrap() {
+	// Внедрение Зависимостей (Dependency Injection, DI)
+	// Внедряем в App через конструктор зависимость от другого сервиса
+	// В данном месте можно легко подменить реализацию LoggerService()
+	const logger = new LoggerService();
+	// Создание приложения с тремя зависимостями
+	// 1. new LoggerService()
+	// 2. new UserController(logger)
+	// 3. new ExceptionFilter(logger)
+	const app = new App(
+		logger,
+		new UserController(logger),
+		new ExceptionFilter(logger)
+	);
+	await app.init(); // Инициализация приложения
+}
+
+// Точка входа в приложение
+bootstrap();
+```
+
+4. Биндинг компонентов
+
+Для каждого компонента (например, `ILogger`) выполнить биндинг с его реализацией (например, `LoggerService`). Использовать соответствующий символ `TYPES.ILogger` для связывания.
+
+Новый код `src\main.ts` с использованием Inversify.js
+
+```TypeScript
+import { App } from './app';
+import { Container } from 'inversify';
+import { ILogger } from './logger/logger.interface';
+import { LoggerService } from './logger/logger.service';
+import { UserController } from './users/users.controller';
+import { IExceptionFilter } from './errors/exception.filter.interface';
+import { ExceptionFilter } from './errors/exception.filter';
+import { TYPES } from './types';
+
+// DI с контейнером inversify
+// Контейнер - место хранения биндингов символов типов на конкретные реализации
+const appContainer = new Container();
+
+// Сбор всех зависимостей в контейнер (собираем контейнер)
+// Интерфейс IService... биндится на конкретную реализацию Service...
+// Интерфейс ILogger биндится на конкретную реализацию LoggerService
+// Теперь по токену TYPES.ILogger можно применить @inject для внедрения LoggerService
+appContainer.bind<ILogger>(TYPES.ILogger).to(LoggerService);
+appContainer.bind<IExceptionFilter>(TYPES.ExceptionFilter).to(ExceptionFilter);
+// Не обязательно создавать интерфейсы для каждой реализация
+// Есть одна конкретная реализация UserController без использования интерфейса
+appContainer.bind<UserController>(TYPES.UserController).to(UserController);
+appContainer.bind<App>(TYPES.Application).to(App);
+
+const app = appContainer.get<App>(TYPES.Application);
+// Точка входа в приложение
+app.init();
+
+// В дальнейшем понадобятся для тестов экземпляры приложения и контейнера
+export { app, appContainer };
+```
+
+5. Использование декораторов
+
+Используем декоратор `@injectable` для указания классов, которые можно помещать в контейнер:
+
+```TypeScript
+// Декоратор @injectable говорит, что LoggerService можно положить в конейнер
+@injectable()
+export class LoggerService implements ILogger { ... }
+```
+
+Использование декоратора `@inject` для внедрения зависимостей по определенному символу:
+
+```TypeScript
+// Декоратор @injectable говорит, что ExceptionFilter можно положить в конейнер
+@injectable()
+export class ExceptionFilter implements IExceptionFilter {
+	// logger: LoggerService;
+	// Явное использование зависимости необходимо заменить на @inject
+	// constructor(logger: LoggerService) {
+	// 	this.logger = logger;
+	// }
+
+	// Декоратор @inject принимает ключ TYPES.ILogger для внедрения зависимости
+	// Управлять зависимостями будет inversify
+	constructor(@inject(TYPES.ILogger) private logger: ILogger) { }
+
+  ...
+}
+```
+
+6. Получение экземпляров из контейнера
+
+   - Использовать метод `get` контейнера для получения экземпляров по символам
+   - Позволяет получить приложение и другие компоненты для инициализации
+
+```TypeScript
+const app = appContainer.get<App>(TYPES.Application);
+```
+
+7. Экспорт и инициализация
+
+   - Инициировать приложение с помощью `app.init()`
+   - Экспортировать `app` и `app.container` для дальнейшего использования, например, в тестах
+
+```TypeScript
+const app = appContainer.get<App>(TYPES.Application);
+// Точка входа в приложение
+app.init();
+
+// В дальнейшем понадобятся для тестов экземпляры приложения и контейнера
+export { app, appContainer };
+```
+
+### Преимущества использования InversifyJS
+
+Возможность легко получать и переиспользовать экземпляры через контейнер
+Упрощение управления зависимостями и их инжектирования
+В тестах можно заменять реализации, делая код более гибким и тестируемым
+
+### Важно:
+
+Для корректной работы декораторов и зависимостей необходимо использовать `Reflect-metadata`
+Проверка и обновления импортов `Reflect-metadata` там, где используются декораторы
+
+Везде, где используются декораторы `@injectable` и `@inject` необходимо добавить `import 'reflect-metadata';` (в новых версиях библиотеки InversifyJS не обязательно).
+
+Проверка приложения:
+
+```shell
+npm run build
+npm start
+http POST http://localhost:8000/users/login
+http POST http://localhost:8000/users/register
+```
+
+```text
+> npm run build
+
+> bin-api@1.0.0 build
+> tsc
+
+
+> npm start
+
+> bin-api@1.0.0 start
+> node ./dist/main.js
+
+2025-05-07 13:12:53 INFO: [post] /register
+2025-05-07 13:12:53 INFO: [post] /login
+2025-05-07 13:12:53 INFO: Сервер запущен на http://localhost:8000
+2025-05-07 13:15:27 ERROR: [login] Ошибка 401: ошибка авторизации
+
+---------------------------------------------
+
+> http POST http://localhost:8000/users/login
+HTTP/1.1 401 Unauthorized
+Connection: keep-alive
+Content-Length: 45
+Content-Type: application/json; charset=utf-8
+Date: Wed, 07 May 2025 13:15:27 GMT
+ETag: W/"2d-ZsKL4B5+lRZUzS8eVsZuDMLJFgI"
+Keep-Alive: timeout=5
+X-Powered-By: Express
+
+{
+    "err": "ошибка авторизации"
+}
 ```

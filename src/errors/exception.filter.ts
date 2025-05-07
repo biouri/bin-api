@@ -2,14 +2,25 @@ import { NextFunction, Request, Response } from 'express';
 import { LoggerService } from '../logger/logger.service';
 import { IExceptionFilter } from './exception.filter.interface';
 import { HTTPError } from './http-error.class';
+import { inject, injectable } from 'inversify';
+import { ILogger } from '../logger/logger.interface';
+import { TYPES } from '../types';
 
 // Все фильтры для единообразия реализуют общий интерфейс IExceptionFilter
 // Чтобы был стандартный метод catch, которым можно что-то обработать
+
+// Декоратор @injectable говорит, что ExceptionFilter можно положить в конейнер
+@injectable()
 export class ExceptionFilter implements IExceptionFilter {
-	logger: LoggerService;
-	constructor(logger: LoggerService) {
-		this.logger = logger;
-	}
+	// logger: LoggerService;
+	// Явное использование зависимости необходимо заменить на @inject
+	// constructor(logger: LoggerService) {
+	// 	this.logger = logger;
+	// }
+
+	// Декоратор @inject принимает ключ TYPES.ILogger для внедрения зависимости
+	// Управлять зависимостями будет inversify
+	constructor(@inject(TYPES.ILogger) private logger: ILogger) { }
 
 	// Метод catch, который ловит ошибку err: Error | HTTPError
 	// HTTPError это расширенный класс от обычной ошибки Error
