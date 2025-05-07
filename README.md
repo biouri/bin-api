@@ -59,6 +59,7 @@ git commit -m "Add Error Handlers + Exception Filters"
 git commit -m "Add Dependency Inversion Principle DIP + Inversion of Control IoC"
 git commit -m "Add Decorators"
 git commit -m "Add Metadata Reflection"
+git commit -m "Add Metadata Reflection Example with Strict Typing testmeta.ts"
 ```
 
 ## 1.1. Простой http сервер
@@ -3785,11 +3786,24 @@ class C {
 // Metadata Reflection
 import 'reflect-metadata';
 
+// Типизированный пример внедрения зависимостей (DI) с reflect-metadata:
+//  - используются строгие типы (Constructor<T>),
+//  - контейнер типобезопасен,
+//  - зависимости автоматически разрешаются через @Inject.
+
+// Особенности:
+// ✅ Типобезопасность: target имеет строгий тип конструктора.
+// ✅ Тип T передаётся через resolve<T>(key) и Injectable<T>.
+// ✅ Масштабируемость: легко добавить третий, четвёртый уровень зависимостей.
+
+// Универсальный тип конструктора
+type Constructor<T = any> = new (...args: any[]) => T;
+
 // DI контейнер
 class Container {
-  private registry = new Map<string, any>();
+  private registry = new Map<string, Constructor>();
 
-  register(key: string, target: any) {
+  register<T>(key: string, target: Constructor<T>) {
     this.registry.set(key, target);
   }
 
@@ -3822,8 +3836,8 @@ class Container {
 const container = new Container();
 
 // Декоратор класса
-function Injectable(key: string) {
-  return (target: any) => {
+function Injectable<T>(key: string) {
+  return (target: Constructor<T>) => {
     container.register(key, target);
   };
 }
