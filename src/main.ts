@@ -1,5 +1,6 @@
+import 'reflect-metadata';
 import { App } from './app';
-import { Container } from 'inversify';
+import { Container, ContainerModule, ContainerModuleLoadOptions } from 'inversify';
 import { ILogger } from './logger/logger.interface';
 import { LoggerService } from './logger/logger.service';
 import { UserController } from './users/users.controller';
@@ -31,24 +32,65 @@ async function bootstrap() {
 bootstrap();
 */
 
-// DI с контейнером inversify
-// Контейнер - место хранения биндингов символов типов на конкретные реализации
-const appContainer = new Container();
+// Отдельный модуль
+// ContainerModule используется чтобы собрать приложение из разных модулей
+// Сбор/Объединение набора зависимостей в модуль (собираем первый модуль)
+// Если приложение будет разростаться, можно разделить модуль на части
 
-// Сбор всех зависимостей в контейнер (собираем контейнер)
-// Интерфейс IService... биндится на конкретную реализацию Service...
-// Интерфейс ILogger биндится на конкретную реализацию LoggerService
-// Теперь по токену TYPES.ILogger можно применить @inject для внедрения LoggerService
-appContainer.bind<ILogger>(TYPES.ILogger).to(LoggerService);
-appContainer.bind<IExceptionFilter>(TYPES.ExceptionFilter).to(ExceptionFilter);
-// Не обязательно создавать интерфейсы для каждой реализация
-// Есть одна конкретная реализация UserController без использования интерфейса
-appContainer.bind<UserController>(TYPES.UserController).to(UserController);
-appContainer.bind<App>(TYPES.Application).to(App);
+// Вариант рабочего кода для Inversify v7+
 
-const app = appContainer.get<App>(TYPES.Application);
-// Точка входа в приложение
-app.init();
+// export const appBindings = new ContainerModule(
+// 	(options: ContainerModuleLoadOptions) => {
+// 		// Интерфейс IService... биндится на конкретную реализацию Service...
+// 		// Интерфейс ILogger биндится на конкретную реализацию LoggerService
+// 		options.bind<ILogger>(TYPES.ILogger).to(LoggerService);
+// 		options.bind<IExceptionFilter>(TYPES.ExceptionFilter).to(ExceptionFilter);
+// 		// Не обязательно создавать интерфейсы для каждой реализацияи
+// 		// Есть одна конкретная реализация UserController без использования интерфейса
+// 		options.bind<UserController>(TYPES.UserController).to(UserController);
+// 		options.bind<App>(TYPES.Application).to(App);
+// });
+
+// В Inversify v7+ ContainerModule ожидает 
+// объект ContainerModuleLoadOptions в виде параметра:
+
+// interface ContainerModuleLoadOptions {
+//   bind: Bind;
+//   unbind: Unbind;
+//   isBound: IsBound;
+//   rebind: Rebind;
+// }
+
+// Отдельный модуль
+// ContainerModule используется чтобы собрать приложение из разных модулей
+// Сбор/Объединение набора зависимостей в модуль (собираем первый модуль)
+// Если приложение будет разростаться, можно разделить модуль на части
+
+// Вариант рабочего кода для Inversify v7+
+
+export const appBindings = new ContainerModule(({ bind }) => {
+	// Интерфейс IService... биндится на конкретную реализацию Service...
+	// Интерфейс ILogger биндится на конкретную реализацию LoggerService
+	// Теперь по токену TYPES.ILogger можно применить @inject для внедрения LoggerService
+	bind<ILogger>(TYPES.ILogger).to(LoggerService);
+	bind<IExceptionFilter>(TYPES.ExceptionFilter).to(ExceptionFilter);
+	// Не обязательно создавать интерфейсы для каждой реализацияи
+	// Есть одна конкретная реализация UserController без использования интерфейса
+	bind<UserController>(TYPES.UserController).to(UserController);
+	bind<App>(TYPES.Application).to(App);
+});
+
+function bootstrap() {
+	// DI с контейнером inversify
+	// Контейнер - место хранения биндингов символов типов на конкретные реализации
+	const appContainer = new Container();
+	// Загрузить существующие биндинги которые определили раньше
+	appContainer.load(appBindings);
+	const app = appContainer.get<App>(TYPES.Application);
+	// Точка входа в приложение
+	app.init();
+	return { appContainer, app };
+}
 
 // В дальнейшем понадобятся для тестов экземпляры приложения и контейнера
-export { app, appContainer };
+export const { app, appContainer } = bootstrap();

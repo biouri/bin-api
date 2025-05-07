@@ -1,3 +1,4 @@
+import 'reflect-metadata';
 import { NextFunction, Request, Response } from 'express';
 import { LoggerService } from '../logger/logger.service';
 import { IExceptionFilter } from './exception.filter.interface';

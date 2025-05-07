@@ -26,6 +26,7 @@
 4.2. Декораторы
 4.3. Metadata Reflection
 4.4. Внедрение InversifyJS
+4.5. Улучшение DI
 
 ## Git
 
@@ -62,6 +63,7 @@ git commit -m "Add Decorators"
 git commit -m "Add Metadata Reflection"
 git commit -m "Add Metadata Reflection Example with Strict Typing testmeta.ts"
 git commit -m "Add InversifyJS DI Container + @injectable + @inject"
+git commit -m "Add Dependency Injection Improvements"
 ```
 
 ## 1.1. Простой http сервер
@@ -3906,6 +3908,126 @@ bInstance.method();
 // A.method() invoked
 ```
 
+### Пример с InversifyJS `src\testinversify.ts`
+
+Установка InversifyJS:
+
+```shell
+npm install inversify reflect-metadata
+```
+
+Проверка включения поддержки метаданных в `tsconfig.json`:
+
+```json
+{
+  "experimentalDecorators": true,
+  "emitDecoratorMetadata": true
+}
+```
+
+Код
+
+```TypeScript
+// inversify-example.ts
+import 'reflect-metadata';
+import { injectable, inject, Container } from 'inversify';
+
+// Идентификаторы (можно использовать Symbol или строки)
+const TYPES = {
+  A: Symbol('A'),
+  B: Symbol('B'),
+};
+
+@injectable()
+class A {
+  run() {
+    console.log('A.run()');
+  }
+}
+
+@injectable()
+class B {
+  constructor(@inject(TYPES.A) private a: A) { }
+
+  run() {
+    console.log('B.run()');
+    this.a.run();
+  }
+}
+
+const container = new Container();
+container.bind<A>(TYPES.A).to(A);
+container.bind<B>(TYPES.B).to(B);
+
+// Получаем экземпляр
+const b = container.get<B>(TYPES.B);
+b.run();
+```
+
+### Пример с tsyringe
+
+Установка:
+
+```bash
+npm install tsyringe reflect-metadata
+```
+
+Код:
+
+```TypeScript
+// tsyringe-example.ts
+import 'reflect-metadata';
+import { container, injectable, inject } from 'tsyringe';
+
+@injectable()
+class A {
+  run() {
+    console.log('A.run()');
+  }
+}
+
+@injectable()
+class B {
+  constructor(@inject('A') private a: A) {}
+
+  run() {
+    console.log('B.run()');
+    this.a.run();
+  }
+}
+
+// Регистрируем A под именем "A"
+container.register('A', { useClass: A });
+
+// Резолвим B
+const b = container.resolve(B);
+b.run();
+```
+
+```shell
+npm run build
+node dist\testtsyringe.js
+```
+
+Результат:
+
+```Text
+B.run()
+A.run()
+```
+
+### Сравнение DI `InversifyJS` vs `tsyringe`:
+
+Оба решения не используются в NestJS. В NestJS есть свой DI.
+
+```Text
+                      | InversifyJS         | tsyringe
+Явная регистрация     |  bind()             | register() или auto
+Идентификаторы        |  Symbol, TYPES      | строки
+Требует контейнер     |  Да (new Container) | Нет (глобальный container)
+Поддержка scoping     |  ✅                 | ⚠️ (ограничено)
+```
+
 ## 4.4. Внедрение InversifyJS
 
 1. Установка InversifyJS
@@ -4126,3 +4248,86 @@ X-Powered-By: Express
     "err": "ошибка авторизации"
 }
 ```
+
+## 4.5. Улучшение DI
+
+1. Пример создания биндингов на интерфейсе.
+2. Функция bootstrap для выделения логики сборки.
+3. Пример создания интерфейса для User-контроллера.
+
+### Модульный подход
+
+- Приложения имеют тенденцию к росту, что усложняет управление зависимостями.
+- Inversify позволяет использовать `container-module` для группировки и переиспользования зависимостей, похоже на Angular и NestJS.
+- Пример создания `container-module (app-bindings)` для объединения зависимостей.
+- Модули позволяют логически структурировать зависимости, облегчая разработку и поддержку приложения.
+
+### Функция bootstrap
+
+- Возвращаем важную функцию `bootstrap` для организации процесса инициализации приложения.
+- В функции `bootstrap` создается контейнер приложения и загружаются необходимые биндинги через метод `.load()`.
+- Преимущества разделения зависимостей на модули при инициализации приложения.
+
+Пример изменений `src\main.ts`:
+
+```TypeScript
+import 'reflect-metadata';
+import { App } from './app';
+import { Container, ContainerModule, ContainerModuleLoadOptions } from 'inversify';
+import { ILogger } from './logger/logger.interface';
+import { LoggerService } from './logger/logger.service';
+import { UserController } from './users/users.controller';
+import { IExceptionFilter } from './errors/exception.filter.interface';
+import { ExceptionFilter } from './errors/exception.filter';
+import { TYPES } from './types';
+
+// В Inversify v7+ ContainerModule ожидает
+// объект ContainerModuleLoadOptions в виде параметра:
+
+// interface ContainerModuleLoadOptions {
+//   bind: Bind;
+//   unbind: Unbind;
+//   isBound: IsBound;
+//   rebind: Rebind;
+// }
+
+// Отдельный модуль
+// ContainerModule используется чтобы собрать приложение из разных модулей
+// Сбор/Объединение набора зависимостей в модуль (собираем первый модуль)
+// Если приложение будет разростаться, можно разделить модуль на части
+
+// Вариант рабочего кода для Inversify v7+
+
+export const appBindings = new ContainerModule(({ bind }) => {
+	// Интерфейс IService... биндится на конкретную реализацию Service...
+	// Интерфейс ILogger биндится на конкретную реализацию LoggerService
+	// Теперь по токену TYPES.ILogger можно применить @inject для внедрения LoggerService
+	bind<ILogger>(TYPES.ILogger).to(LoggerService);
+	bind<IExceptionFilter>(TYPES.ExceptionFilter).to(ExceptionFilter);
+	// Не обязательно создавать интерфейсы для каждой реализацияи
+	// Есть одна конкретная реализация UserController без использования интерфейса
+	bind<UserController>(TYPES.UserController).to(UserController);
+	bind<App>(TYPES.Application).to(App);
+});
+
+function bootstrap() {
+	// DI с контейнером inversify
+	// Контейнер - место хранения биндингов символов типов на конкретные реализации
+	const appContainer = new Container();
+	// Загрузить существующие биндинги которые определили раньше
+	appContainer.load(appBindings);
+	const app = appContainer.get<App>(TYPES.Application);
+	// Точка входа в приложение
+	app.init();
+	return { appContainer, app };
+}
+
+// В дальнейшем понадобятся для тестов экземпляры приложения и контейнера
+export const { app, appContainer } = bootstrap();
+```
+
+### Практический пример - User-контроллер
+
+- Создание интерфейса `IUserController` с методами `login` и `register`.
+- Интеграция интерфейса с User-контроллером для демонстрации применения биндингов к интерфейсам.
+- Проверка работоспособности изменений и её влияние на обработку запросов.
