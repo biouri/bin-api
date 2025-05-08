@@ -4,7 +4,7 @@ import { container, injectable, inject } from 'tsyringe';
 
 @injectable()
 class A {
-  run() {
+  run(): void {
     console.log('A.run()');
   }
 }
@@ -13,7 +13,7 @@ class A {
 class B {
   constructor(@inject('A') private a: A) {}
 
-  run() {
+  run(): void {
     console.log('B.run()');
     this.a.run();
   }

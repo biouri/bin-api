@@ -8,6 +8,11 @@ import { IExceptionFilter } from './errors/exception.filter.interface';
 import { ExceptionFilter } from './errors/exception.filter';
 import { TYPES } from './types';
 
+export interface IBootstrapReturn {
+  appContainer: Container;
+  app: App;
+}
+
 /*
 // DI без использования контейнера inversify
 // Точка сбора всех зависимостей - Composition Root
@@ -51,7 +56,7 @@ bootstrap();
 // 		options.bind<App>(TYPES.Application).to(App);
 // });
 
-// В Inversify v7+ ContainerModule ожидает 
+// В Inversify v7+ ContainerModule ожидает
 // объект ContainerModuleLoadOptions в виде параметра:
 
 // interface ContainerModuleLoadOptions {
@@ -69,27 +74,27 @@ bootstrap();
 // Вариант рабочего кода для Inversify v7+
 
 export const appBindings = new ContainerModule(({ bind }) => {
-	// Интерфейс IService... биндится на конкретную реализацию Service...
-	// Интерфейс ILogger биндится на конкретную реализацию LoggerService
-	// Теперь по токену TYPES.ILogger можно применить @inject для внедрения LoggerService
-	bind<ILogger>(TYPES.ILogger).to(LoggerService);
-	bind<IExceptionFilter>(TYPES.ExceptionFilter).to(ExceptionFilter);
-	// Не обязательно создавать интерфейсы для каждой реализацияи
-	// Есть одна конкретная реализация UserController без использования интерфейса
-	bind<UserController>(TYPES.UserController).to(UserController);
-	bind<App>(TYPES.Application).to(App);
+  // Интерфейс IService... биндится на конкретную реализацию Service...
+  // Интерфейс ILogger биндится на конкретную реализацию LoggerService
+  // Теперь по токену TYPES.ILogger можно применить @inject для внедрения LoggerService
+  bind<ILogger>(TYPES.ILogger).to(LoggerService);
+  bind<IExceptionFilter>(TYPES.ExceptionFilter).to(ExceptionFilter);
+  // Не обязательно создавать интерфейсы для каждой реализацияи
+  // Есть одна конкретная реализация UserController без использования интерфейса
+  bind<UserController>(TYPES.UserController).to(UserController);
+  bind<App>(TYPES.Application).to(App);
 });
 
-function bootstrap() {
-	// DI с контейнером inversify
-	// Контейнер - место хранения биндингов символов типов на конкретные реализации
-	const appContainer = new Container();
-	// Загрузить существующие биндинги которые определили раньше
-	appContainer.load(appBindings);
-	const app = appContainer.get<App>(TYPES.Application);
-	// Точка входа в приложение
-	app.init();
-	return { appContainer, app };
+function bootstrap(): IBootstrapReturn {
+  // DI с контейнером inversify
+  // Контейнер - место хранения биндингов символов типов на конкретные реализации
+  const appContainer = new Container();
+  // Загрузить существующие биндинги которые определили раньше
+  appContainer.load(appBindings);
+  const app = appContainer.get<App>(TYPES.Application);
+  // Точка входа в приложение
+  app.init();
+  return { appContainer, app };
 }
 
 // В дальнейшем понадобятся для тестов экземпляры приложения и контейнера

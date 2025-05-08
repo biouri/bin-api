@@ -12,31 +12,30 @@ import { inject, injectable } from 'inversify';
 // Декоратор @injectable говорит, что LoggerService можно положить в конейнер
 @injectable()
 export class LoggerService implements ILogger {
-	public logger: Logger<ILogObj>;
+  public logger: Logger<ILogObj>;
 
-	constructor() {
-		// В новой версии tslog конфигурирование логов происходит через шаблонную строку
-		const loggerTemplate = 
-			"{{yyyy}}-{{mm}}-{{dd}} {{hh}}:{{MM}}:{{ss}} {{logLevelName}}: ";
-		// Создание логгера
-		
-		this.logger = new Logger({
-			prettyLogTemplate: loggerTemplate
-		});
-	}
+  constructor() {
+    // В новой версии tslog конфигурирование логов происходит через шаблонную строку
+    const loggerTemplate = '{{yyyy}}-{{mm}}-{{dd}} {{hh}}:{{MM}}:{{ss}} {{logLevelName}}: ';
+    // Создание логгера
 
-	// log принимает аргументы неизвестного типа
-	public log(...args: unknown[]) {
-		this.logger.info(...args);
-	}
+    this.logger = new Logger({
+      prettyLogTemplate: loggerTemplate
+    });
+  }
 
-	public error(...args: unknown[]) {
-		// Возможны дополнительные Side эффекты:
-		// например, отправка в sentry / rollbar
-		this.logger.error(...args);
-	}
+  // log принимает аргументы неизвестного типа
+  public log(...args: unknown[]): void {
+    this.logger.info(...args);
+  }
 
-	public warn(...args: unknown[]) {
-		this.logger.warn(...args);
-	}
+  public error(...args: unknown[]): void {
+    // Возможны дополнительные Side эффекты:
+    // например, отправка в sentry / rollbar
+    this.logger.error(...args);
+  }
+
+  public warn(...args: unknown[]): void {
+    this.logger.warn(...args);
+  }
 }

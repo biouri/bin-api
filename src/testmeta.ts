@@ -18,7 +18,7 @@ type Constructor<T = any> = new (...args: any[]) => T;
 class Container {
   private registry = new Map<string, Constructor>();
 
-  register<T>(key: string, target: Constructor<T>) {
+  register<T>(key: string, target: Constructor<T>): void {
     this.registry.set(key, target);
   }
 
@@ -32,7 +32,8 @@ class Container {
     const paramTypes: any[] = Reflect.getMetadata('design:paramtypes', target) || [];
 
     // Получаем ключи для инъекций (если есть)
-    const injectKeys: (string | undefined)[] = Reflect.getMetadata('custom:injectKeys', target) || [];
+    const injectKeys: (string | undefined)[] =
+      Reflect.getMetadata('custom:injectKeys', target) || [];
 
     // Рекурсивно резолвим зависимости
     const params = paramTypes.map((_: any, index: number) => {
@@ -62,7 +63,7 @@ const container = new Container();
 
 // Декоратор класса
 function Injectable<T>(key: string) {
-  return (target: Constructor<T>) => {
+  return (target: Constructor<T>): void => {
     container.register(key, target);
   };
 }
@@ -70,11 +71,11 @@ function Injectable<T>(key: string) {
 // Декоратор параметра конструктора
 function Inject(key: string) {
   return (
-    target: Object, 
-    propertyKey: string | symbol | undefined, 
+    target: Object,
+    propertyKey: string | symbol | undefined,
     parameterIndex: number
-  ) => {
-    const existingInjectedKeys: (string | undefined)[] = 
+  ): void => {
+    const existingInjectedKeys: (string | undefined)[] =
       Reflect.getMetadata('custom:injectKeys', target) || [];
     existingInjectedKeys[parameterIndex] = key;
     Reflect.defineMetadata('custom:injectKeys', existingInjectedKeys, target);
@@ -86,7 +87,7 @@ function Inject(key: string) {
 // Связь ключ + target необходима для постоения дерева зависимостей
 @Injectable('KeyA')
 class A {
-  method() {
+  method(): void {
     console.log('A.method() invoked');
   }
 }
@@ -96,11 +97,11 @@ class A {
 @Injectable('KeyB')
 class B {
   // Класс B в конструкторе принимает объект класса A
-  // В данном месте может быть подставлен @Injectable объект, 
+  // В данном месте может быть подставлен @Injectable объект,
   // Автоматически работает механизм DI
   constructor(@Inject('KeyA') private a: A) {}
 
-  method() {
+  method(): void {
     console.log('B.method() invoked');
     // Вызов метода из зависимости A
     this.a.method();
@@ -120,7 +121,7 @@ class B {
 // - рекурсивно разрешает все зависимости;
 // - создает экземпляр класса с подставленными зависимостями.
 
-// Можно расширить этот механизм до синглтонов, скоупов, 
+// Можно расширить этот механизм до синглтонов, скоупов,
 // отложенной загрузки и circular dependencies.
 
 const bInstance = container.resolve<B>('KeyB');
@@ -129,20 +130,20 @@ bInstance.method();
 // A.method() invoked
 
 // Декоратор
-function Test(target: Function) {
-    // Сохраняем свойства
-    // Используем глобальный NameSpace Reflect
-    // a - ключ
-    // 1 - значение, которое мы передаем и сохраняем
-    // target - цель на которую будем триггериться при сохранении
-    // Сохраняем свойства для target
-    Reflect.defineMetadata('a', 1 ,target);
+function Test(target: Function): void {
+  // Сохраняем свойства
+  // Используем глобальный NameSpace Reflect
+  // a - ключ
+  // 1 - значение, которое мы передаем и сохраняем
+  // target - цель на которую будем триггериться при сохранении
+  // Сохраняем свойства для target
+  Reflect.defineMetadata('a', 1, target);
 
-    // meta - данные, определяются для конкретного объекта
-    // Объектом может служить класс, метод, свойство, параметр
-    // Получение свойства по ключу из цели target
-    const meta = Reflect.getMetadata('a', target);
-    console.log(`meta: ${meta}`);
+  // meta - данные, определяются для конкретного объекта
+  // Объектом может служить класс, метод, свойство, параметр
+  // Получение свойства по ключу из цели target
+  const meta = Reflect.getMetadata('a', target);
+  console.log(`meta: ${meta}`);
 }
 
 // Декоратор свойства
@@ -158,7 +159,7 @@ class C {
   // @Prop prop: number;
 
   // @Method
-  method() {
+  method(): void {
     // ...
   }
 }

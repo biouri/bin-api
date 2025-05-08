@@ -27,6 +27,7 @@
 4.3. Metadata Reflection
 4.4. Внедрение InversifyJS
 4.5. Улучшение DI
+5.1. Eslint и Prettier
 
 ## Git
 
@@ -64,6 +65,7 @@ git commit -m "Add Metadata Reflection"
 git commit -m "Add Metadata Reflection Example with Strict Typing testmeta.ts"
 git commit -m "Add InversifyJS DI Container + @injectable + @inject"
 git commit -m "Add Dependency Injection Improvements"
+git commit -m "Add Eslint + Prettier + .vscode/settings.json"
 ```
 
 ## 1.1. Простой http сервер
@@ -118,23 +120,23 @@ npm init
 `index.js`
 
 ```javascript
-import http from "http";
+import http from 'http';
 
-const host = "127.0.0.1";
+const host = '127.0.0.1';
 const port = 8000;
 
 // В createServer передается функция слушатель запросов
 const server = http.createServer((req, res) => {
   // Обработка запроса и генерация ответа
   switch (req.method) {
-    case "GET":
+    case 'GET':
       switch (req.url) {
-        case "/hello":
+        case '/hello':
           // Устанавливаем параметры для ответа
           res.statusCode = 200;
-          res.setHeader("Content-Type", "text/plain");
+          res.setHeader('Content-Type', 'text/plain');
           // Ответить (после установки параметров)
-          res.end("Привет!");
+          res.end('Привет!');
           break;
       }
       break;
@@ -244,7 +246,7 @@ npm i express
    Пример с роутом, обрабатывающим GET-запрос по адресу `/hello` и отправляющим ответ "Привет".
 
 ```javascript
-import express from "express";
+import express from 'express';
 
 const port = 8000;
 // Создание приложения Express = вызов функции express()
@@ -252,8 +254,8 @@ const app = express();
 
 // В рамках приложения можно создавать Маршруты
 // Для обработки запроса применяется callback функция с request, response
-app.get("/hello", (req, res) => {
-  res.send("Привет!");
+app.get('/hello', (req, res) => {
+  res.send('Привет!');
 });
 
 // Создание сервера
@@ -383,7 +385,7 @@ https://hoppscotch.io
    Express предоставляет удобные методы для группирования маршрутов, связанных с одной сущностью или API, что упрощает структурирование кода и повышает читаемость.
 
 ```javascript
-import express from "express";
+import express from 'express';
 
 const port = 8000;
 // Создание приложения Express = вызов функции express()
@@ -395,8 +397,8 @@ const app = express();
 // Middleware для обработки всех типов запросов
 // Для обработки любого запроса применяется all в которой есть параметр next
 // Это промежуточный обработчик внедренный перед маршрутом нужного типа
-app.all("/hello", (req, res, next) => {
-  console.log("All");
+app.all('/hello', (req, res, next) => {
+  console.log('All');
   // Если вызывается next(), то
   // обработка запроса передается дальше на GET, POST... обработчик
   next();
@@ -404,13 +406,13 @@ app.all("/hello", (req, res, next) => {
 
 // Дополнительный CallBack
 const cb = (req, res, next) => {
-  console.log("Extra CallBack");
+  console.log('Extra CallBack');
   next();
 };
 
 // Дополнительный CallBack 2
 const cb2 = (req, res, next) => {
-  console.log("Extra CallBack 2");
+  console.log('Extra CallBack 2');
   next();
 };
 
@@ -440,25 +442,25 @@ const cb2 = (req, res, next) => {
 // Можно также последовательно выполнить массив из CallBack обработчиков
 // app.get(/^\/h*ello$/, [cb, cb2, (req, res) => { ... }]);
 app.get(/^\/h*ello$/, cb, cb2, (req, res) => {
-  console.log("GET /h*ello");
-  res.send("Привет! GET /hello");
+  console.log('GET /h*ello');
+  res.send('Привет! GET /hello');
 });
 
 // Группирование маршрутов
 // Для обработки каждого запроса применяется callback функция с request, response
 app
-  .route("/user")
+  .route('/user')
   .get((req, res) => {
-    console.log("GET /user");
-    res.send("Get User! GET /user");
+    console.log('GET /user');
+    res.send('Get User! GET /user');
   })
   .post((req, res) => {
-    console.log("POST /user");
-    res.send("Add User! POST /user");
+    console.log('POST /user');
+    res.send('Add User! POST /user');
   })
   .put((req, res) => {
-    console.log("PUT /user");
-    res.send("Update User! PUT /user");
+    console.log('PUT /user');
+    res.send('Update User! PUT /user');
   });
 
 // Создание сервера
@@ -481,7 +483,7 @@ app.listen(port, () => {
 
 ```javascript
 // Тестирование ответов клиенту
-app.get("/test", (req, res) => {
+app.get('/test', (req, res) => {
   // JSON
   res.send({ success: true });
 });
@@ -507,9 +509,9 @@ X-Powered-By: Express
 - Для работы исключительно с JSON предусмотрен метод `json`.
 
 ```javascript
-app.get("/test", (req, res) => {
+app.get('/test', (req, res) => {
   // Изменнеие статуса и ответ JSON
-  res.status(201).json({ success: true, type: "json" });
+  res.status(201).json({ success: true, type: 'json' });
 });
 ```
 
@@ -537,7 +539,7 @@ X-Powered-By: Express
    Можно явно задать статус ответа, например, `201` при создании ресурса.
 
 ```javascript
-app.get("/test", (req, res) => {
+app.get('/test', (req, res) => {
   // Изменнеие статуса и ответ JSON
   res.status(201).send({ success: true });
 });
@@ -557,9 +559,9 @@ Content-Type: application/json; charset=utf-8
    Метод `download` позволяет предложить пользователю скачать файл, с возможностью задать имя файла.
 
 ```javascript
-app.get("/test", (req, res) => {
+app.get('/test', (req, res) => {
   // Предложить пользователю скачать файл, с возможностью задать новое имя файла
-  res.download("./choco.md", "optional_filename.txt");
+  res.download('./choco.md', 'optional_filename.txt');
 });
 ```
 
@@ -568,9 +570,9 @@ app.get("/test", (req, res) => {
 Редирект: Позволяет перенаправить пользователя на другую страницу или сайт с помощью статуса (например, `301`) и указания URL.
 
 ```javascript
-app.get("/test", (req, res) => {
+app.get('/test', (req, res) => {
   // Перенаправить на другую страницу или сайт с помощью статуса (например, `301`)
-  res.redirect(301, "http://localhost:8000/user");
+  res.redirect(301, 'http://localhost:8000/user');
 });
 ```
 
@@ -597,20 +599,20 @@ Moved Permanently. Redirecting to http://localhost:8000/user
 - Метод `set` позволяет добавить или изменить заголовки, например, для явного задания `Content-Type`, `Location` и др.
 
 ```javascript
-app.get("/test", (req, res) => {
+app.get('/test', (req, res) => {
   // Добавить или изменить заголовки
-  res.set("Content-Type", "text/plain");
-  res.send("Привет!");
+  res.set('Content-Type', 'text/plain');
+  res.send('Привет!');
 });
 ```
 
 - Метод `append` добавляет новые заголовки к ответу.
 
 ```javascript
-app.get("/test", (req, res) => {
+app.get('/test', (req, res) => {
   // Добавить заголовки
-  res.append("Warning", "Code");
-  res.send("Привет!");
+  res.append('Warning', 'Code');
+  res.send('Привет!');
 });
 ```
 
@@ -618,15 +620,15 @@ app.get("/test", (req, res) => {
    Можно задавать специфичные типы содержимого ответа, например, HTML или JSON, с помощью метода `type`.
 
 ```javascript
-app.get("/test", (req, res) => {
+app.get('/test', (req, res) => {
   // Задать специфичные типы содержимого ответа, например, HTML или JSON
-  res.type("application/json");
+  res.type('application/json');
   // Аналогично можно установить location, links
   // res.location('...');
   // res.links({
   // 	next: '...'
   // });
-  res.send("Привет!");
+  res.send('Привет!');
 });
 ```
 
@@ -639,19 +641,19 @@ app.get("/test", (req, res) => {
    С помощью `clearCookie` можно удалить указанный `cookie`.
 
 ```javascript
-app.get("/test", (req, res) => {
+app.get('/test', (req, res) => {
   // Задать специфичные типы содержимого ответа, например, HTML или JSON
-  res.type("application/json");
+  res.type('application/json');
   // Установка cookie (например, token для авторизации)
-  res.cookie("token", "abcdefgh", {
-    domain: "",
-    path: "/",
+  res.cookie('token', 'abcdefgh', {
+    domain: '',
+    path: '/',
     secure: true,
-    expires: new Date(Date.now() + 600000), // 10 минут от текущего времени
+    expires: new Date(Date.now() + 600000) // 10 минут от текущего времени
   });
   // Пример очистки cookie token (когда пользователь выходит из системы)
-  res.clearCookie("token");
-  res.send("Привет!");
+  res.clearCookie('token');
+  res.send('Привет!');
   // res.end();
 });
 ```
@@ -661,11 +663,11 @@ res.cookie() параметр expires должен быть объектом Dat
 Если просто указать "время жизни" cookie в миллисекундах — используется maxAge:
 
 ```javascript
-res.cookie("token", "abcdefgh", {
-  domain: "",
-  path: "/",
+res.cookie('token', 'abcdefgh', {
+  domain: '',
+  path: '/',
   secure: true,
-  maxAge: 600000, // 10 минут
+  maxAge: 600000 // 10 минут
 });
 ```
 
@@ -675,7 +677,7 @@ res.cookie("token", "abcdefgh", {
 Крайне желательно, чтобы был выполнен любой метод для ответа res, чтобы route разрезолвился.
 
 ```javascript
-app.get("/test", (req, res) => {
+app.get('/test', (req, res) => {
   // Если нечего возвращать, желательно установить status и завершить обработоку end()
   // Если status не указан, он будет 200
   // res.status(404).end();
@@ -712,17 +714,17 @@ app.get("/test", (req, res) => {
 `users\users.js`
 
 ```javascript
-import express from "express";
+import express from 'express';
 
 // Создание роутера
 const userRouter = express.Router();
 
-userRouter.post("/login", (req, res) => {
-  res.send("login");
+userRouter.post('/login', (req, res) => {
+  res.send('login');
 });
 
-userRouter.post("/register", (req, res) => {
-  res.send("register");
+userRouter.post('/register', (req, res) => {
+  res.send('register');
 });
 
 export { userRouter };
@@ -772,7 +774,7 @@ login
 // Дополнительный обработчик роутера
 // Будет срабатывать для всех запросов маршрута /users/...
 userRouter.use((req, res, next) => {
-  console.log("Обработчик users");
+  console.log('Обработчик users');
   next();
 });
 ```
@@ -790,14 +792,14 @@ userRouter.use((req, res, next) => {
 // Глобальный обработчик на все приложение
 // Единая точка, где будут логгироваться все входящие запросы
 app.use((req, res, next) => {
-  console.log("Время: ", Date.now());
+  console.log('Время: ', Date.now());
   // Обязательно необходимо передать управление дальше
   next();
 });
 
 // Локальный обработчик для всех запросов '/hello'
-app.use("/hello", (req, res, next) => {
-  console.log("Hello время: ", Date.now());
+app.use('/hello', (req, res, next) => {
+  console.log('Hello время: ', Date.now());
   // Обязательно необходимо передать управление дальше
   next();
 });
@@ -1072,7 +1074,7 @@ let a: number = 5;
    Пример объявления строки:
 
 ```typescript
-let b: string = "текст";
+let b: string = 'текст';
 ```
 
 3. Булевы значения (Boolean)
@@ -1087,7 +1089,7 @@ let isActive: boolean = true;
 TypeScript предотвращает присваивание значения неподходящего типа:
 
 ```typescript
-a = "текст"; // Ошибка: нельзя присвоить строку переменной типа number
+a = 'текст'; // Ошибка: нельзя присвоить строку переменной типа number
 ```
 
 Пример автоматического приведения типов (конкатенация строки и числа):
@@ -1109,7 +1111,7 @@ let numbers: number[] = [1, 2, 3];
    Определение и использование tuple:
 
 ```typescript
-let tuple: [number, string] = [2, "текст"];
+let tuple: [number, string] = [2, 'текст'];
 ```
 
 ### Any
@@ -1119,7 +1121,7 @@ let tuple: [number, string] = [2, "текст"];
 
 ```typescript
 let anything: any = 3;
-anything = "теперь я строка";
+anything = 'теперь я строка';
 anything = true; // Может быть преобразован в любой тип
 ```
 
@@ -1130,7 +1132,7 @@ anything = true; // Может быть преобразован в любой �
 
 ```typescript
 function greet(name: string): string {
-  return name + " привет!";
+  return name + ' привет!';
 }
 ```
 
@@ -1513,7 +1515,7 @@ Enum в TypeScript позволяет определить набор имено
 ```typescript
 enum Direction {
   left,
-  right,
+  right
 }
 ```
 
@@ -1565,7 +1567,7 @@ function move(direction: Direction) {
 // Значения можно изменять, например, для отправки json
 enum Direction {
   left = 10, // Изменилось значение по умолчанию на 10
-  right, // right = 11, назначено автоматически
+  right // right = 11, назначено автоматически
 }
 
 // Это позволяет обращаться к Enum значениям как
@@ -1576,8 +1578,8 @@ const d2 = Direction.right;
 // Можно явно указать строковое значение
 // для каждого элемента Enum
 enum DirectionStr {
-  left = "LEFT", // Изменение значения по умолчанию для left
-  right = "RIGHT", // Для строковых Enum нужно задать все значения
+  left = 'LEFT', // Изменение значения по умолчанию для left
+  right = 'RIGHT' // Для строковых Enum нужно задать все значения
 }
 
 // Гетерогенные Enum
@@ -1585,15 +1587,15 @@ enum DirectionStr {
 // на практике редко используются
 enum DirectionNumStr {
   left = 1, // Изменение значения по умолчанию на 1
-  right = "RIGHT", // Можно указать значения другого типа 'RIGHT'
+  right = 'RIGHT' // Можно указать значения другого типа 'RIGHT'
 }
 
 // Расчётные значения
 // Enum могут иметь расчётные значения,
 // эти значения должны быть определены на момент компиляции
 enum DirectionCalc {
-  left = "1234".length, // Изменилось значение на расчётное
-  right = "12".length, // Значение вычисляется при инициализации
+  left = '1234'.length, // Изменилось значение на расчётное
+  right = '12'.length // Значение вычисляется при инициализации
 }
 
 // Использование в функциях в качестве параметров для строгой типизации
@@ -1620,7 +1622,7 @@ objMod(Direction);
 // и не будет присутствовать в runtime как объект
 const enum DirectionConst {
   up,
-  down,
+  down
 }
 
 // В Runtime вместо объекта будет значение 0 для Const Enum
@@ -1684,7 +1686,7 @@ function logUniversal<T>(obj: T): T {
 }
 
 // Переиспользование функции с различными типами
-logUniversal<string>("abc");
+logUniversal<string>('abc');
 logUniversal<number>(5);
 
 // Пример использования нескольких Generics
@@ -1693,7 +1695,7 @@ function logUni2<T, K>(obj: T, arr: K[]): K[] {
   return arr;
 }
 
-logUni2<string, number>("str", [1, 2, 3]);
+logUni2<string, number>('str', [1, 2, 3]);
 
 // Сужение Generics для использования с определенными свойствами
 interface HasLength {
@@ -1796,7 +1798,7 @@ coord.y = 45689;
 // Объявление класса
 // Пример с классом имеющим свойства latitude и longitude
 class Coordinate {
-  message = "1";
+  message = '1';
   latitude: number;
   longitude: number;
 
@@ -1804,7 +1806,7 @@ class Coordinate {
   // но недоступен в экземпляре (инстансе)
   protected test() {
     if (this.latitude > 0) {
-      console.log("Успешное тестирование...");
+      console.log('Успешное тестирование...');
       //....
     }
   }
@@ -1827,7 +1829,7 @@ class Coordinate {
 // Наследование
 // Создание классов на основе существующих
 class MapLocation extends Coordinate {
-  message = "2";
+  message = '2';
   // _ нижнее подчеркивание это соглашение
   private _name: string; // Само значение _name приватное
   // # это приватное свойство в JavaScript в TS редко используется
@@ -1841,7 +1843,7 @@ class MapLocation extends Coordinate {
 
   set name(s: string) {
     // Setter позволяет добавить дополнительную логику
-    this._name = s + "_Extra!";
+    this._name = s + '_Extra!';
   }
 
   // Переопределение метода (лучше использовать с override)
@@ -1864,7 +1866,7 @@ class MapLocation extends Coordinate {
   }
 }
 
-let loc = new MapLocation(1, 2, "Начало света");
+let loc = new MapLocation(1, 2, 'Начало света');
 // Property 'test' is protected and only accessible within class
 // 'Coordinate' and its subclasses.
 // loc.test();
@@ -1887,14 +1889,14 @@ class Logger implements loggerService {
 
   // Приватные методы и переменные недоступны извне
   private error() {
-    console.log("Error");
+    console.log('Error');
   }
 
-  private a = "PRIVATE";
+  private a = 'PRIVATE';
 }
 
 const l = new Logger();
-l.log("d");
+l.log('d');
 // l.error(); // Приватные методы и переменные недоступны извне
 
 // В TypeScript нет статических классов как в C#,
@@ -1904,7 +1906,7 @@ l.log("d");
 // существуют до создания инстансов
 class MyClass {
   // Статическая переменная
-  static a = "555";
+  static a = '555';
 
   // Статический блок инициализации
   static {
@@ -1943,7 +1945,7 @@ abstract class Base {
 class BaseExtended extends Base {
   // Обязательно необходимо реализовать абстрактные методы
   error(s: string): void {
-    console.log("");
+    console.log('');
   }
 
   // Дополнительная логика
@@ -1977,8 +1979,8 @@ const x1: Model = new Car();
 
 // Приведение типа
 const carX1 = x1 as Car;
-carX1.model = "BMW";
-carX1.color = "Green";
+carX1.model = 'BMW';
+carX1.color = 'Green';
 carX1.length = 5;
 
 console.log(`Модель: ${x1.model}`); // работает
@@ -2037,17 +2039,17 @@ Null:
 
 ```typescript
 // TypeOf позволяет получить тип переменной
-let hello = "Привет";
+let hello = 'Привет';
 
 // С помощью TypeOf мы можем выполнить проверку
 
-if (typeof hello == "string") {
+if (typeof hello == 'string') {
   // ....
 }
 
 // И присвоить этот тип другой переменной
 // Сделать переменную other с таким же типом как у a
-let other: typeof hello = "other тоже строка";
+let other: typeof hello = 'other тоже строка';
 
 // KeyOf: используется для создания типа,
 // который может принимать значение только из ключей другого типа.
@@ -2060,8 +2062,8 @@ type Coord = {
 type K = keyof Coord;
 
 // можно использовать только 'latitude' и 'longitude'
-let y: K = "latitude";
-let z: K = "longitude";
+let y: K = 'latitude';
+let z: K = 'longitude';
 
 // null - это тип, указывающий на отсутствие значения
 // Использование методов строки напрямую вызовет ошибку
@@ -2082,7 +2084,7 @@ function logging(a: string | null): void {
 const big: bigint = BigInt(100);
 
 // Symbol позволяют создать уникальный идентификатор из строк или объектов
-const uniqSymbol: symbol = Symbol("alskjfonq");
+const uniqSymbol: symbol = Symbol('alskjfonq');
 ```
 
 ## 3.1. Обзор архитектуры
@@ -2181,9 +2183,9 @@ Prometheus — это система мониторинга и сбора мет
 app.ts
 
 ```typescript
-import express, { Express } from "express";
-import { userRouter } from "./users/users";
-import { Server } from "http";
+import express, { Express } from 'express';
+import { userRouter } from './users/users';
+import { Server } from 'http';
 
 export class App {
   app: Express; // Интерфейс приложения Express
@@ -2198,7 +2200,7 @@ export class App {
 
   // Метод инициализации Маршрутов Routes
   useRoutes() {
-    this.app.use("/users", userRouter);
+    this.app.use('/users', userRouter);
   }
 
   // Инициализация приложения при запуске
@@ -2227,7 +2229,7 @@ export class App {
    - Функция `bootstrap` для инициализации класса и запуска метода `init`.
 
 ```typescript
-import { App } from "./app";
+import { App } from './app';
 
 async function bootstrap() {
   const app = new App(); // Создание приложения
@@ -2302,7 +2304,7 @@ http POST http://localhost:8000/users/register
 `src\logger\logger.service.ts`
 
 ```typescript
-import { Logger, ILogObj } from "tslog";
+import { Logger, ILogObj } from 'tslog';
 
 // Абстракция логгера скрывает настройки конфигурации от пользователя
 // Также имеется возможность дополнять функционал и расширять методы логгера
@@ -2312,12 +2314,11 @@ export class LoggerService {
 
   constructor() {
     // В новой версии tslog конфигурирование логов происходит через шаблонную строку
-    const loggerTemplate =
-      "{{yyyy}}-{{mm}}-{{dd}} {{hh}}:{{MM}}:{{ss}} {{logLevelName}}: ";
+    const loggerTemplate = '{{yyyy}}-{{mm}}-{{dd}} {{hh}}:{{MM}}:{{ss}} {{logLevelName}}: ';
     // Создание логгера
 
     this.logger = new Logger({
-      prettyLogTemplate: loggerTemplate,
+      prettyLogTemplate: loggerTemplate
     });
   }
 
@@ -2353,10 +2354,10 @@ export class LoggerService {
 `src\app.ts`
 
 ```typescript
-import express, { Express } from "express";
-import { userRouter } from "./users/users";
-import { Server } from "http";
-import { LoggerService } from "./logger/logger.service";
+import express, { Express } from 'express';
+import { userRouter } from './users/users';
+import { Server } from 'http';
+import { LoggerService } from './logger/logger.service';
 
 export class App {
   app: Express; // Интерфейс приложения Express
@@ -2381,7 +2382,7 @@ export class App {
 
   // Метод инициализации Маршрутов Routes
   useRoutes() {
-    this.app.use("/users", userRouter);
+    this.app.use('/users', userRouter);
   }
 
   // Инициализация приложения при запуске
@@ -2407,8 +2408,8 @@ export class App {
 Изменения в `src\main.ts`
 
 ```typescript
-import { App } from "./app";
-import { LoggerService } from "./logger/logger.service";
+import { App } from './app';
+import { LoggerService } from './logger/logger.service';
 
 async function bootstrap() {
   // Внедрение Зависимостей (Dependency Injection, DI)
@@ -2454,7 +2455,7 @@ class MyService {
   constructor(private readonly logger: LoggerService) {}
 
   run() {
-    this.logger.log("Starting...");
+    this.logger.log('Starting...');
   }
 }
 ```
@@ -2490,7 +2491,7 @@ class StaticLogger {
 const mockLogger = {
   log: jest.fn(),
   error: jest.fn(),
-  warn: jest.fn(),
+  warn: jest.fn()
 };
 
 const service = new MyService(mockLogger as unknown as LoggerService);
@@ -2522,8 +2523,7 @@ export class LoggerService implements ILogger {
 
   constructor() {
     this.logger = new Logger({
-      prettyLogTemplate:
-        "{{yyyy}}-{{mm}}-{{dd}} {{hh}}:{{MM}}:{{ss}} {{logLevelName}}: ",
+      prettyLogTemplate: '{{yyyy}}-{{mm}}-{{dd}} {{hh}}:{{MM}}:{{ss}} {{logLevelName}}: '
     });
   }
 
@@ -4331,3 +4331,355 @@ export const { app, appContainer } = bootstrap();
 - Создание интерфейса `IUserController` с методами `login` и `register`.
 - Интеграция интерфейса с User-контроллером для демонстрации применения биндингов к интерфейсам.
 - Проверка работоспособности изменений и её влияние на обработку запросов.
+
+## 5.1. Eslint и Prettier
+
+ESLint, TypeScript ESLint и Prettier для стандартизации и автоматизации форматирования кода в проекте.
+
+https://eslint.org/
+
+https://typescript-eslint.io/
+https://github.com/typescript-eslint/typescript-eslint
+
+https://prettier.io/
+
+1. ESLint и Prettier
+
+   - ESLint помогает стандартизировать стиль кода, особенно в командной разработке. Например, поcтавить точки с запятой (при отсутствии), обязательно ли должна присутствовать запятая... ESLint рекомендуется добавлять в Pipeline сборки приложения (build pipeline). Часто используется перед CodeReview.
+   - Prettier автоматически форматирует код по заданным правилам.
+
+2. Установка зависимостей
+
+   - Установить ESLint, TypeScript ESLint (парсер и плагин), Prettier, ESLint-Prettier конфиг и плагин.
+   - Добавить TypeScript, если он не установлен в проекте.
+
+```bash
+npm i -D eslint
+npm i -D @typescript-eslint/parser
+npm i -D @typescript-eslint/eslint-plugin
+npm i -D prettier
+npm i -D eslint-config-prettier
+npm i -D eslint-plugin-prettier
+npm i -D typescript
+```
+
+Внесены изменения в `package.json`
+
+```json
+  "devDependencies": {
+    "@types/express": "^5.0.1",
+    "@typescript-eslint/eslint-plugin": "^8.32.0",
+    "@typescript-eslint/parser": "^8.32.0",
+    "eslint": "^9.26.0",
+    "eslint-config-prettier": "^10.1.3",
+    "eslint-plugin-prettier": "^5.4.0",
+    "prettier": "^3.5.3",
+    "typescript": "^5.8.3"
+  }
+```
+
+3. Настройка конфигураций
+
+   - Создать и настроить `.prettierrc` для Prettier.
+   - Создать и настроить `.eslintrc.json` для ESLint.
+
+`.prettierrc`
+
+```json
+{
+  "singleQuote": true,
+  "trailingComma": "none",
+  "useTabs": false,
+  "tabWidth": 2,
+  "semi": true,
+  "bracketSpacing": true,
+  "printWidth": 100,
+  "endOfLine": "auto"
+}
+```
+
+Пояснение:
+
+```Text
+Опция       | Значение | Описание
+useTabs     | false    | Использовать пробелы вместо табуляции.
+tabWidth    | 2        | Количество пробелов, используемых для отступа.
+singleQuote | true     | Использовать одинарные кавычки.
+semi        | true     | Всегда ставить точку с запятой.
+printWidth  | 100      | Максимальная длина строки до переноса.
+endOfLine   | "auto"   | Автоматически подбирать формат переноса строк в зависимости от ОС.
+```
+
+Что делает trailingComma:
+"none" - ❌ Не ставит запятую в конце
+"es5" - ✅ Ставит запятые в объектах/массивах (ES5), но не в функциях
+"all" (по умолчанию) - ✅ Везде, включая аргументы функций
+
+4. Интеграция с IDE и автоматическое форматирование
+
+   - Для VSCode создать папку `.vscode` и в ней файл `settings.json` для настройки автоматического форматирования.
+   - Настроить авто-формат при сохранении файла.
+
+```json
+{
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "editor.codeActionsOnSave": {
+    "source.fixAll": "explicit",
+    "source.fixAll.eslint": "explicit"
+  },
+  "eslint.useFlatConfig": true,
+  "eslint.validate": ["typescript", "javascript"],
+  "eslint.alwaysShowStatus": true
+}
+```
+
+5. Добавление скриптов для линтинга и автофиксов в `package.json`
+
+   - Добавить скрипт для запуска ESLint (`lint` и `lint:fix`).
+
+```json
+  "scripts": {
+    ...
+    "lint": "eslint ./src/**",
+    "lint:fix": "eslint ./src/** --fix",
+    ...
+  },
+```
+
+6. Управление типами данных и типизация функций
+
+   - Настроить правила для типизации возвращаемых функцией типов.
+   - Пример использования явной типизации для улучшения читаемости и отлова ошибок.
+
+```js
+...
+    rules: {
+      '@typescript-eslint/explicit-function-return-type': 'off' // выключить проверку
+      // '@typescript-eslint/explicit-function-return-type': 'warn' // включить предупреждения
+    }
+```
+
+7. Тестирование и запуск проекта
+
+   - Запустить линтинг и автофикс, убедиться в отсутствии ошибок.
+   - Проверить сборку и запуск проекта.
+
+Только проверка
+
+```shell
+npm run lint
+```
+
+Исправление ошибок
+
+```shell
+npm run lint:fix
+```
+
+Пример ручного исправления для возвращаемого типа `function bootstrap()` добавляем интерфейс, интерфейс обычно добавляют в отдельный файл, но можно и в исходном файле `src\main.ts`:
+
+```TypeScript
+export interface IBootstrapReturn {
+  appContainer: Container;
+  app: App;
+}
+
+function bootstrap(): IBootstrapReturn { ... }
+```
+
+### Pipeline сборки приложения
+
+Pipeline сборки приложения (build pipeline) — это набор автоматических шагов, которые выполняются для сборки, тестирования и подготовки приложения к запуску или публикации.
+
+Он может быть простым (например, компиляция TypeScript → JavaScript), а может включать сложные этапы: линтинг, юнит-тесты, сборку Docker-образов, деплой и т.д.
+
+При детектировании ошибок на этапе линтинга, Pipeline останавливается и деплой не выполняется.
+
+#### Типичный pipeline включает:
+
+1. Установка зависимостей
+   `npm install` или `yarn install`
+
+2. Линтинг и форматирование кода
+   `eslint`, `prettier`, `tslint` — проверка стиля и ошибок
+
+3. Тестирование
+   Запуск `unit/integration` тестов: `jest`, `mocha`, `vitest`
+
+4. Сборка проекта
+   Например: `tsc` (TypeScript), `webpack`, `esbuild`, `vite`, `rollup`
+
+5. Бандлинг и минификация
+   Объединение JS/CSS в один файл и сжатие кода
+
+6. Создание Docker-образа (если используется)
+
+7. Развертывание (деплой)
+   На сервер, в облако, CI/CD и т.д.
+
+#### Где это используется?
+
+1. Локально: разработчик запускает `npm run build`
+
+2. CI/CD-система (например GitHub Actions, GitLab CI, Jenkins, Azure Pipelines) автоматически запускает pipeline при коммите
+
+#### Пример для Node.js / TypeScript проекта
+
+```bash
+# 1. Установка зависимостей
+npm ci
+
+# 2. Линтинг
+npm run lint
+
+# 3. Тесты
+npm test
+
+# 4. Сборка
+npm run build
+```
+
+Или автоматизировано в `.github/workflows/ci.yml` (GitHub Actions):
+
+```yaml
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+```
+
+ESLint обычно используется до Code Review, чтобы автоматически найти и устранить ошибки или несоответствия в коде, прежде чем человек начнёт его проверять.
+
+### Зачем использовать ESLint перед Code Review?
+
+1. Автоматическая проверка кода
+
+   - Обнаруживает синтаксические ошибки, баги и антипаттерны.
+   - Проверяет соблюдение кодстайла (например, отступы, кавычки, отсутствие any).
+
+2. Ускоряет ревью
+
+   - Ревьюверу не нужно указывать на каждую запятую или неправильный стиль — ESLint уже сделал это.
+   - Остаётся фокусироваться на логике, архитектуре и бизнес-ошибках.
+
+3. Унификация кода
+
+   - Весь код в проекте становится единообразным независимо от разработчика.
+   - Особенно важно в командной работе.
+
+🔄 Типичный порядок
+
+1. Разработчик пишет код
+2. ✅ Прогоняет ESLint (часто автоматически через pre-commit hook или CI)
+3. ✅ Исправляет замечания, если есть
+4. 🧑‍💻 Создаёт Pull Request
+5. 🔍 Проводится Code Review
+6. ✅ Тестирование и merge
+
+#### Как автоматизировать запуск ESLint?
+
+Через скрипт:
+
+```json
+"scripts": {
+  "lint": "eslint . --ext .ts,.js"
+}
+```
+
+Через Git hook (например, `[lint-staged + husky]`):
+
+```bash
+npx husky add .husky/pre-commit "npx lint-staged"
+Через CI (например, GitHub Actions):
+```
+
+```yaml
+- run: npm run lint
+```
+
+Конфиг для 8 версии eslint:
+`bin-api\.eslintrc`
+
+```json
+{
+  "root": true,
+  "parser": "@typescript-eslint/parser",
+  "plugins": ["@typescript-eslint"],
+  "extends": [
+    "eslint:recommended",
+    "plugin:@typescript-eslint/eslint-recommended",
+    "plugin:@typescript-eslint/recommended",
+    "plugin:prettier/recommended"
+  ],
+  "rules": {
+    "@typescript-eslint/ban-types": "off",
+    "@typescript-eslint/no-unused-vars": ["off"],
+    "@typescript-eslint/no-explicit-any": "off",
+    "@typescript-eslint/explicit-function-return-type": ["warn"],
+    "prettier/prettier": [
+      "error",
+      {
+        "singleQuote": true,
+        "useTabs": false,
+        "tabWidth": 2,
+        "semi": true,
+        "trailingComma": "all",
+        "bracketSpacing": true,
+        "printWidth": 100,
+        "endOfLine": "auto"
+      }
+    ]
+  }
+}
+```
+
+Конфиг для 9 версии eslint:
+
+```JavaScript
+// eslint.config.js
+const tseslint = require('@typescript-eslint/eslint-plugin');
+const tsparser = require('@typescript-eslint/parser');
+const prettier = require('eslint-plugin-prettier');
+
+module.exports = [
+  {
+    files: ['**/*.ts', '**/*.tsx'],
+    languageOptions: {
+      parser: tsparser,
+      parserOptions: {
+        ecmaVersion: 'latest',
+        sourceType: 'module' // даже если проект CommonJS, это нужно для ESM-синтаксиса
+      }
+    },
+    plugins: {
+      '@typescript-eslint': require('@typescript-eslint/eslint-plugin'),
+      prettier: prettier
+    },
+    rules: {
+      'prettier/prettier': [
+        'error',
+        {
+          singleQuote: true,
+          semi: true,
+          trailingComma: 'none',
+          bracketSpacing: true,
+          printWidth: 100,
+          endOfLine: 'auto',
+          useTabs: false,
+          tabWidth: 2
+        }
+      ],
+      '@typescript-eslint/ban-types': 'off',
+      '@typescript-eslint/no-unused-vars': 'off',
+      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/explicit-function-return-type': 'warn'
+      // '@typescript-eslint/explicit-function-return-type': 'off' // выключить проверку
+    }
+  }
+];
+```

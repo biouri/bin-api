@@ -5,19 +5,19 @@ import express from 'express';
 // Создание роутера
 const userRouter = express.Router();
 
-// Дополнительный обработчик роутера 
+// Дополнительный обработчик роутера
 // Будет срабатывать для всех запросов маршрута /users/...
 userRouter.use((req, res, next) => {
-	console.log('Обработчик users');
-	next();
+  console.log('Обработчик users');
+  next();
 });
 
 userRouter.post('/login', (req, res) => {
-	res.send('login');
+  res.send('login');
 });
 
 userRouter.post('/register', (req, res) => {
-	res.send('register');
+  res.send('register');
 });
 
 export { userRouter };

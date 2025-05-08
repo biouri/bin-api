@@ -5,21 +5,21 @@ import { injectable, inject, Container } from 'inversify';
 // Идентификаторы (можно использовать Symbol или строки)
 const TYPES = {
   A: Symbol('A'),
-  B: Symbol('B'),
+  B: Symbol('B')
 };
 
 @injectable()
 class A {
-  run() {
+  run(): void {
     console.log('A.run()');
   }
 }
 
 @injectable()
 class B {
-  constructor(@inject(TYPES.A) private a: A) { }
+  constructor(@inject(TYPES.A) private a: A) {}
 
-  run() {
+  run(): void {
     console.log('B.run()');
     this.a.run();
   }
