@@ -28,6 +28,7 @@
 4.4. Внедрение InversifyJS
 4.5. Улучшение DI
 5.1. Eslint и Prettier
+5.2. Подключение nodemon
 
 ## Git
 
@@ -66,6 +67,7 @@ git commit -m "Add Metadata Reflection Example with Strict Typing testmeta.ts"
 git commit -m "Add InversifyJS DI Container + @injectable + @inject"
 git commit -m "Add Dependency Injection Improvements"
 git commit -m "Add Eslint + Prettier + .vscode/settings.json"
+git commit -m "Add Nodemon + TS-node TypeScript for Node.js"
 ```
 
 ## 1.1. Простой http сервер
@@ -4682,4 +4684,88 @@ module.exports = [
     }
   }
 ];
+```
+
+## 5.2. Подключение nodemon
+
+Инструменты для автоматической пересборки и перезапуска при изменении кода.
+
+1. Nodemon:
+   нод-монитор для слежения за файлами и автоматического перезапуска сервера.
+
+2. TS-node
+   среда исполнения TypeScript на Node.js, позволяет запускать TypeScript код напрямую, без предварительной компиляции в JavaScript.
+
+### Установка зависимостей
+
+Установка nodemon и TS-node как dev-dependencies.
+
+```shell
+npm i -D nodemon
+npm i -D ts-node
+```
+
+### Конфигурация nodemon
+
+Создать файл `nodemon.json` в корне проекта.
+
+В файле указать:
+`watch` папку - папку для мониторинга (например, `src`).
+`ext` - расширения файлов для слежения (например, `ts`, `json`).
+`ignore` - файлы или папки для игнорирования (например, тестовые файлы `.spec.ts`).
+`exec` - команда запуска приложения (например, `ts-node src/main.ts`). Не требуется предварительная компиляция.
+
+### Добавление скрипта для запуска в dev-режиме
+
+В `package.json` добавить скрипт `dev` для запуска nodemon. Скрипт nodemon будет читать файл конфигурации `nodemon.json` в корне проекта и работать согласно настройкам из него.
+
+```json
+  "scripts": {
+    ...
+    "dev": "nodemon"
+    ...
+  }
+```
+
+### Проверка работы
+
+Запустить приложение в dev-режиме с помощью `npm run dev`.
+При изменении файлов в папке `src` nodemon автоматически перезапустит сервер.
+
+### Преимущества
+
+Ускоряет процесс разработки, избавляя от необходимости ручного перезапуска сервера.
+TS-node обеспечивает выполнение TypeScript кода напрямую, при этом учитывая настройки из `tsconfig.json`.
+
+```shell
+npm run dev
+http POST http://localhost:8000/users/login
+# Во время работы делаем изменения в одном из файлов проекта
+http POST http://localhost:8001/users/login
+```
+
+Во время работы делаем изменения в файле провекта `src\app.ts` (изменяем порт).
+Сервер перезапустится автоматически.
+
+```Text
+> npm run dev
+
+> bin-api@1.0.0 dev
+> nodemon
+
+[nodemon] 3.1.10
+[nodemon] to restart at any time, enter `rs`
+[nodemon] watching path(s): src\**\*
+[nodemon] watching extensions: ts,json
+[nodemon] starting `ts-node ./src/main.ts`
+2025-05-08 22:55:46 INFO: [post] /register
+2025-05-08 22:55:46 INFO: [post] /login
+2025-05-08 22:55:46 INFO: Сервер запущен на http://localhost:8000
+2025-05-08 22:57:05 ERROR: [login] Ошибка 401: ошибка авторизации
+[nodemon] restarting due to changes...
+[nodemon] starting `ts-node ./src/main.ts`
+2025-05-08 22:57:33 INFO: [post] /register
+2025-05-08 22:57:33 INFO: [post] /login
+2025-05-08 22:57:33 INFO: Сервер запущен на http://localhost:8001
+2025-05-08 22:57:44 ERROR: [login] Ошибка 401: ошибка авторизации
 ```
