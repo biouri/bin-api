@@ -33,6 +33,7 @@
 5.4. Анализ памяти
 5.5. Мониторинг производительности
 6.1. Улучшение архитектуры
+6.2. Data transfer object
 
 ## Git
 
@@ -76,6 +77,7 @@ git commit -m "Add Debug Config launch.json + sourceMap in tsconfig.json"
 git commit -m "Add Chrome DevTools Memory Analysis + Performance Optimization"
 git commit -m "Add ClinicJS Doctor + Autocannon Load Simulator"
 git commit -m "Add Architectural Improvements"
+git commit -m "Add Data Transfer Object DTO + body-parser Middleware"
 ```
 
 ## 1.1. Простой http сервер
@@ -5224,3 +5226,166 @@ Use --trace-sync-io to track synchronous I/O operations
 
 Использование `Entity` и `DTO`:
 Это дает возможность инкапсулировать работу с объектами и их валидацию, создавая четкую структуру обработки данных.
+
+## 6.2. Data transfer object
+
+Data Transfer Object (DTO) для использования в методах логина и регистрации.
+
+### Создание DTO
+
+1. Определение: DTO - это класс, представляющий данные, которые будут передаваться извне в контроллер. Теоретически эти объекты могут использоваться между контроллером и сервисами и т.д.
+2. Размещение: DTO классы хранятся в отдельной папке DTO.
+3. DTO - это классы для описания объектов, которые будут передаваться между различными частями системы.
+4. Используются именно классы а не интерфейсы, потому что к ним в дальнейшем будут применяться декораторы.
+5. В архитектуре CQRS при передаче данных (например, при создании пользователя), эти данные оформляются как объект определенного класса (`DTO`), и создаются через `new`. Данные должны содержаться внутри класса. `DTO` это по сути описание того, что будет приходить извне и попадать в контроллер.
+
+### Преимущества архитектуры CQRS:
+
+CQRS (Command Query Responsibility Segregation) паттерн, который часто используется вместе с DTO (Data Transfer Object).
+
+- Позволяет проверить типы и структуру данных.
+- Упрощает валидацию (можно встроить проверку внутрь конструктора или через декораторы).
+- Делает код более читаемым и структурированным.
+
+### Реализация
+
+1. Создаются два класса: `UserLoginDto` и `UserRegisterDto`, оба содержат поля `email` и `password`. Для регистрации дополнительно добавляется поле `name`.
+2. Если DTO очень похожи, можно использовать наследование для эффективности.
+3. Например, можно создать базовый класс `UserCredentialDto`.
+
+`users\dto\user-login.dto.ts`
+
+```TypeScript
+export class UserLoginDto {
+  email: string;
+  password: string;
+}
+```
+
+`users\dto\user-register.dto.ts`
+
+```TypeScript
+export class UserRegisterDto {
+  email: string;
+  password: string;
+  name: string;
+}
+```
+
+### Использование DTO в контроллерах
+
+1. По сути DTO это контракты на то, как будет приходить информация.
+2. Типизация запроса: DTO используется для типизации тела запроса в контроллерах, упрощая обработку и валидацию данных.
+3. Пример: В методах логина и регистрации используется соответствующий DTO для обработки данных пользователя.
+
+Но если попытаться выполнить POST запрос на сервер и передать в BODY JSON:
+
+```shell
+http POST http://localhost:8000/users/register email=test@mail.com password=testpass
+```
+
+- HTTPie автоматически преобразует параметры ключ=значение в JSON, если используется http POST
+- запрос будет отправлен с заголовком `Content-Type: application/json`
+
+```http
+POST /users/register HTTP/1.1
+Content-Type: application/json
+{
+  "email": "test@mail.com",
+  "password": "testpass"
+}
+```
+
+Но мы не получим в результате DTO объект как планировали, причина - Express по умолчанию не умеет сериализовать BODY и не обрабатывает JSON.
+
+`users\users.controller.ts`
+
+```TypeScript
+  // Третий параметр в Request<{}, {}, UserLoginDto> является ReqBody
+  // ReqBody - это данные которые будут приходить методом POST UserLoginDto
+  // в качестве body будем использовать DTO объект
+  login(req: Request<{}, {}, UserLoginDto>, res: Response, next: NextFunction): void {
+    console.log(req.body); // body будет UserLoginDto
+    // req.body является UserLoginDto и его можно использоват далее как объект
+
+    //...
+  }
+```
+
+### Настройка Express для работы с JSON
+
+Express по умолчанию не обрабатывает JSON в теле запроса, требуется установка и настройка `body-parser` как middleware для разбора JSON.
+
+```shell
+npm i body-parser
+```
+
+Парсеры могут также парсить XML, есть также FORM-парсеры.
+Для JSON парсинга добавляем `useMiddleware()` в `app.ts`:
+
+```TypeScript
+...
+import { json } from 'body-parser'; // Middleware для разбора JSON
+
+@injectable()
+export class App {
+  app: Express; // Интерфейс приложения Express
+
+  ...
+
+  useMiddleware(): void {
+    // Приложение (this.app) использует (this.app.use) Middleware
+    this.app.use(json()); // Парсер BODY в JSON для всех запросов
+  }
+
+  // Метод инициализации Маршрутов Routes
+  useRoutes(): void {
+    this.app.use('/users', this.userController.router); // Используем контроллер
+  }
+
+  // Можеть быть несколько Exception Filters
+  useExceptionFilters(): void {
+    // Обязательно привязываем контекст фильтра this.exceptionFilter
+    this.app.use(this.exceptionFilter.catch.bind(this.exceptionFilter));
+  }
+
+  public async init(): Promise<void> {
+    // Запуск в правильном порядке
+    // 1. Middleware
+    // 2. Routes Маршруты
+    // 3. Exception Filters
+
+    // На текущий момент есть Middleware + Инициализация Маршрутов + Exception Filters
+    // Важен порядок следования
+    this.useMiddleware(); // Глобальный парсер BODY в JSON для всех запросов
+    this.useRoutes();
+    this.useExceptionFilters();
+    // Создание сервера
+    this.server = this.app.listen(this.port);
+    // В данном месте будет добавлено логгирование
+    this.logger.log(`Сервер запущен на http://localhost:${this.port}`);
+  }
+}
+```
+
+Тестирование
+
+```shell
+http POST http://localhost:8000/users/login email=test@mail.com password=testpass
+```
+
+Результат
+
+```Text
+> npm run dev
+...
+
+2025-05-09 22:39:15 INFO: [post] /register
+2025-05-09 22:39:15 INFO: [post] /login
+2025-05-09 22:39:15 INFO: Сервер запущен на http://localhost:8000
+{ email: 'test@mail.com', password: 'testpass' }
+```
+
+### Валидация и безопасность
+
+Текущее состояние принимает объекты без валидации, что может привести к ошибкам.

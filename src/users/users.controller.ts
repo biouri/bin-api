@@ -7,17 +7,19 @@ import { inject, injectable } from 'inversify';
 import { TYPES } from '../types';
 import { ILogger } from '../logger/logger.interface';
 import { IUserController } from './users.controller.interface';
+import { UserLoginDto } from './dto/user-login.dto';
+import { UserRegisterDto } from './dto/user-register.dto';
 
 // Временные импорты для экспериментов с производительностью
-import fs from 'fs';
-import { resolve } from 'path';
+// import fs from 'fs';
+// import { resolve } from 'path';
 
 // Будем использовать для экспериметров перерасхода памяти
-const data = [];
+// const data = [];
 
 // Временные объекты пользователей для экспериментов с памятью
-class User {}
-const users = [];
+// class User {}
+// const users = [];
 
 // Декоратор @injectable говорит, что UserController можно положить в конейнер
 @injectable()
@@ -32,14 +34,21 @@ export class UserController extends BaseController implements IUserController {
     ]);
   }
 
-  login(req: Request, res: Response, next: NextFunction): void {
+  // Третий параметр в Request<{}, {}, UserLoginDto> является ReqBody
+  // ReqBody - это данные которые будут приходить методом POST UserLoginDto
+  // в качестве body будем использовать DTO объект
+  login(req: Request<{}, {}, UserLoginDto>, res: Response, next: NextFunction): void {
+    // Для JSON используется body-parser, он парсит UserLoginDto в req.body
+    console.log(req.body); // body будет UserLoginDto
+    // req.body является UserLoginDto и его можно использоват далее как объект
+
     // res используется для передачи контекста
     // ok утилитарный метод базового контроллера
     // this.ok(res, 'Login...');
 
     console.log('. Точка отладки .');
     // Для эксперимета `Поиск утечек` засоряем память пустыми объектами User()
-    users.push(new User());
+    // users.push(new User());
     // Вместо ответа
     // Пример тестирования обработки ошибки
     // В любом месте контроллера можно вызвать next
@@ -48,13 +57,20 @@ export class UserController extends BaseController implements IUserController {
     next(new HTTPError(401, 'ошибка авторизации', 'login'));
   }
 
-  register(req: Request, res: Response, next: NextFunction): void {
+  // Третий параметр в Request<{}, {}, UserRegisterDto> является ReqBody
+  // ReqBody - это данные которые будут приходить методом POST UserRegisterDto
+  // в качестве body будем использовать DTO объект
+  register(req: Request<{}, {}, UserRegisterDto>, res: Response, next: NextFunction): void {
+    // Для JSON используется body-parser, он парсит UserRegisterDto в req.body
+    console.log(req.body); // body будет UserRegisterDto
+    // req.body является UserRegisterDto и его можно использоват далее как объект
+
     // Эксперимент для тестирования производительности
     // Синхронно читаем файл и блокируем Event Loop
     // __dirname является текущим каталогом, где находится файл
     // data.push() используется чтобы израсходовать большой объем памяти
     // Идеально плохой код для тестирования
-    data.push(fs.readFileSync(resolve(__dirname, '../../Auf_dem_Markt.mp4')));
+    // data.push(fs.readFileSync(resolve(__dirname, '../../Auf_dem_Markt.mp4')));
 
     // res используется для передачи контекста
     // ok утилитарный метод базового контроллера

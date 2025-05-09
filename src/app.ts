@@ -7,6 +7,7 @@ import { ExceptionFilter } from './errors/exception.filter';
 import { ILogger } from './logger/logger.interface';
 import { inject, injectable } from 'inversify';
 import { TYPES } from './types';
+import { json } from 'body-parser'; // Middleware для разбора JSON
 
 @injectable()
 export class App {
@@ -42,6 +43,13 @@ export class App {
     // this.exceptionFilter = exceptionFilter; // Получить инстанс извне как зависимость
   }
 
+  // Глобальный парсер BODY в JSON для всех запросов
+  // Также можно настроить Middleware для конкретных запросов
+  useMiddleware(): void {
+    // Приложение (this.app) использует (this.app.use) Middleware
+    this.app.use(json()); // Парсер BODY в JSON для всех запросов
+  }
+
   // Метод инициализации Маршрутов Routes
   useRoutes(): void {
     this.app.use('/users', this.userController.router); // Используем контроллер
@@ -59,12 +67,13 @@ export class App {
   // На текущий момент корневой класс App запускает сервер Express
   public async init(): Promise<void> {
     // Запуск в правильном порядке
-    // 1. Middleware (на данном этапе отсутствует)
+    // 1. Middleware
     // 2. Routes Маршруты
     // 3. Exception Filters
 
-    // На текущий момент есть Инициализация Маршрутов + Exception Filters
+    // На текущий момент есть Middleware + Инициализация Маршрутов + Exception Filters
     // Важен порядок следования
+    this.useMiddleware(); // Глобальный парсер BODY в JSON для всех запросов
     this.useRoutes();
     this.useExceptionFilters();
     // Создание сервера
