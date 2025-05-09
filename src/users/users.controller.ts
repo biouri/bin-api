@@ -8,6 +8,10 @@ import { TYPES } from '../types';
 import { ILogger } from '../logger/logger.interface';
 import { IUserController } from './users.controller.interface';
 
+// Временные объекты пользователей для экспериментов с памятью
+class User {}
+const users = [];
+
 // Декоратор @injectable говорит, что UserController можно положить в конейнер
 @injectable()
 export class UserController extends BaseController implements IUserController {
@@ -27,6 +31,8 @@ export class UserController extends BaseController implements IUserController {
     // this.ok(res, 'Login...');
 
     console.log('. Точка отладки .');
+    // Для эксперимета `Поиск утечек` засоряем память пустыми объектами User()
+    users.push(new User());
     // Вместо ответа
     // Пример тестирования обработки ошибки
     // В любом месте контроллера можно вызвать next
