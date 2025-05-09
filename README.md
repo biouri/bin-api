@@ -29,6 +29,7 @@
 4.5. Улучшение DI
 5.1. Eslint и Prettier
 5.2. Подключение nodemon
+5.3. Отладка - Debugging
 
 ## Git
 
@@ -68,6 +69,7 @@ git commit -m "Add InversifyJS DI Container + @injectable + @inject"
 git commit -m "Add Dependency Injection Improvements"
 git commit -m "Add Eslint + Prettier + .vscode/settings.json"
 git commit -m "Add Nodemon + TS-node TypeScript for Node.js"
+git commit -m "Add Debug Config launch.json + sourceMap in tsconfig.json"
 ```
 
 ## 1.1. Простой http сервер
@@ -4705,6 +4707,10 @@ npm i -D nodemon
 npm i -D ts-node
 ```
 
+В результете установки будут добавлены скрипты:
+node_modules\.bin\nodemon
+node_modules\.bin\ts-node
+
 ### Конфигурация nodemon
 
 Создать файл `nodemon.json` в корне проекта.
@@ -4769,3 +4775,155 @@ http POST http://localhost:8001/users/login
 2025-05-08 22:57:33 INFO: Сервер запущен на http://localhost:8001
 2025-05-08 22:57:44 ERROR: [login] Ошибка 401: ошибка авторизации
 ```
+
+## 5.3. Отладка - Debugging
+
+Поиск и исправление багов.
+Просмотр значений переменных, шаг за шагом анализ работы кода.
+
+### Инструменты и подготовка:
+
+1. `Source Map` для связи TypeScript и JavaScript кода.
+   Включается в TS-конфиге.
+   Создаёт `.map` файлы, указывающие соответствие строк TS и JS кодов.
+
+Восстановить предыдущую версию файла tsconfig.json из Git
+
+```shell
+git checkout HEAD -- tsconfig.json
+```
+
+И создать файл для игнорирования `.prettierignore`
+
+```Text
+tsconfig.json
+```
+
+Добавить (или сделать активной) в tsconfig.json строку:
+
+```json
+"sourceMap": true, /* Create source map files for emitted JavaScript files. */
+```
+
+Теперь автоматически будут создаваться `.map` файлы, указывающие соответствие строк TS и JS кодов при выполнении компилиции:
+
+```shell
+npm run build
+```
+
+2. `Nodemon` для автоматического перезапуска приложения после изменений.
+   Позволяет сохранять breakpoint'ы и продолжать отслеживать код после изменений.
+
+### Настройка отладки в VS Code:
+
+Пример создания файла `launch.json` для запуска отладки с Nodemon. Этот файл может не сработать, поскольку может отличаться путь к файлу `nodemon`, например:
+
+`\node_modules\.bin\nodemon`
+`\node_modules\nodemon\bin\nodemon.js`
+
+Вариант 1. Файл конфигурации `launch.json`
+
+```json
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "nodemon",
+      "runtimeExecutable": "${workspaceFolder}/node_modules/nodemon/bin/nodemon.js",
+      "restart": true,
+      "console": "integratedTerminal",
+      "internalConsoleOptions": "neverOpen"
+    }
+  ]
+}
+```
+
+Вариант 2. Файл конфигурации `launch.json`
+
+```json
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "command": "npm run dev",
+      "name": "Run npm dev",
+      "request": "launch",
+      "type": "node-terminal"
+    }
+  ]
+}
+```
+
+Если использовать автоматическое создание файла в VSCode, будет создан почти идентичный файл (для сравнения с вариантами выше).
+Автоматическое создание файла `launch.json` для запуска с Nodemon.
+Обратить внимание на строку конфигурации, которая отключена:
+`// "program": "${workspaceFolder}/app.js", // не нужно в данном случае`
+
+```json
+{
+  // Use IntelliSense to learn about possible attributes.
+  // Hover to view descriptions of existing attributes.
+  // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "console": "integratedTerminal",
+      "internalConsoleOptions": "neverOpen",
+      "name": "nodemon",
+      // Все параметры для запуска nodemon будет брать из nodemon.json
+      // Строка сгенерирована автоматически VSCode при создании .vscode\launch.json
+      // "program": "${workspaceFolder}/app.js", // не нужно в данном случае
+      "request": "launch",
+      "restart": true,
+      "runtimeExecutable": "nodemon",
+      "skipFiles": ["<node_internals>/**"],
+      "type": "node"
+    },
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "Launch Program",
+      "skipFiles": ["<node_internals>/**"],
+      "program": "${file}"
+    }
+  ]
+}
+```
+
+Конфигурация включает:
+
+- Тип выполнения (`Node.js`),
+- Пути и параметры запуска,
+- Автоматический перезапуск при изменениях.
+
+В логе обратить внимание на строку `Debugger attached.`:
+
+```Text
+D:\Projects\node_abc\bin-api> cmd /C "set "NODE_OPTIONS= --require c:/VSCode/resources/app/extensions/ms-vscode.js-debug/src/bootloader.js  --inspect-publish-uid=http" && set "VSCODE_INSPECTOR_OPTIONS=:::{"inspectorIpc":"\\\\.\\pipe\\node-cdp.24920-338388a4-5.sock","deferredMode":false,"waitForDebugger":"","execPath":"C:\\Program Files\\nodejs\\node.exe","onlyEntrypoint":false,"autoAttachMode":"always","fileCallback":"C:\\Users\\belok\\AppData\\Local\\Temp\\node-debug-callback-d7664cd5768dce9e"}" && d:\Projects\node_abc\bin-api\node_modules\.bin\nodemon.CMD
+"
+Debugger attached.
+[nodemon] 3.1.10
+[nodemon] to restart at any time, enter `rs`
+[nodemon] watching path(s): src\**\*
+[nodemon] watching extensions: ts,json
+[nodemon] starting `ts-node ./src/main.ts`
+Debugger attached.
+2025-05-09 11:41:13 INFO: [post] /register
+2025-05-09 11:41:13 INFO: [post] /login
+2025-05-09 11:41:13 INFO: Сервер запущен на http://localhost:8000
+```
+
+### Процесс отладки:
+
+1. Установка breakpoint'ов.
+2. Запуск отладки через кнопку `Play` или клавишу `F5`.
+3. Использование панели управления отладкой для шага по коду, просмотра переменных и стека вызовов.
+
+### Возможности:
+
+1. Мониторинг значений переменных и состояний.
+2. Просмотр и управление точками останова.
+3. Анализ стека вызовов и запросов.
+4. Обнаружение исключений.

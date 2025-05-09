@@ -26,6 +26,7 @@ export class UserController extends BaseController implements IUserController {
     // ok утилитарный метод базового контроллера
     // this.ok(res, 'Login...');
 
+    console.log('. Точка отладки .');
     // Вместо ответа
     // Пример тестирования обработки ошибки
     // В любом месте контроллера можно вызвать next
