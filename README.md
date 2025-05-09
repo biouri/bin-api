@@ -31,6 +31,7 @@
 5.2. Подключение nodemon
 5.3. Отладка - Debugging
 5.4. Анализ памяти
+5.5. Мониторинг производительности
 
 ## Git
 
@@ -72,6 +73,7 @@ git commit -m "Add Eslint + Prettier + .vscode/settings.json"
 git commit -m "Add Nodemon + TS-node TypeScript for Node.js"
 git commit -m "Add Debug Config launch.json + sourceMap in tsconfig.json"
 git commit -m "Add Chrome DevTools Memory Analysis + Performance Optimization"
+git commit -m "Add ClinicJS Doctor + Autocannon Load Simulator"
 ```
 
 ## 1.1. Простой http сервер
@@ -5019,3 +5021,167 @@ const users = [];
 
 `Sources` и `Console` в `Chrome DevTools`: Изучение исходного кода, выполнение кода и просмотр логов в консоли.
 Выполнение кода и быстрое выявление проблем.
+
+## 5.5. Мониторинг производительности
+
+### ClinicJS Doctor
+
+- `ClinicJS Doctor` является частью набора инструментов `ClinicJS` для диагностики приложений Node.js.
+- Позволяет анализировать утечки памяти, задержки в `Event Loop`, использование CPU и количество открытых соединений.
+- Упрощает обнаружение проблем с производительностью и предоставляет рекомендации.
+
+### Необходимые инструменты
+
+https://clinicjs.org/
+
+Глобальная установка `ClinicJS Doctor` и `autocannon` (имитатор нагрузки).
+
+```shell
+npm install -g clinic doctor autocannon
+```
+
+Отчет по установке:
+
+```Text
+npm warn deprecated inflight@1.0.6: This module is not supported, and leaks memory. Do not use it. Check out lru-cache if you want a good and tested way to coalesce async requests by a key value, which is much more comprehensive and powerful.
+npm warn deprecated har-validator@5.1.5: this library is no longer supported
+npm warn deprecated rimraf@3.0.2: Rimraf versions prior to v4 are no longer supported
+npm warn deprecated glob@7.2.3: Glob versions prior to v9 are no longer supported
+npm warn deprecated sourcemap-codec@1.4.8: Please use @jridgewell/sourcemap-codec instead
+npm warn deprecated uuid@3.4.0: Please upgrade  to version 7 or higher.  Older versions may use Math.random() in certain circumstances, which is known to be problematic.  See https://v8.dev/blog/math-random for details.
+npm warn deprecated mkdirp@0.3.4: Legacy versions of mkdirp are no longer supported. Please update to mkdirp 1.x. (Note that the API surface has changed to use Promises in 1.x.)
+npm warn deprecated request@2.88.2: request has been deprecated, see https://github.com/request/request/issues/3142
+
+added 765 packages in 45s
+```
+
+Подготовка примера: Добавление тяжелого файла в проект для демонстрации задержки `Event Loop`.
+
+Необходими обновить `.gitignore` чтобы не засорять проект диагностическими файлами:
+
+Добавить в `.gitignore`:
+
+```Text
+/.clinic
+```
+
+### Использование ClinicJS Doctor
+
+1. Запуск на здоровом приложении:
+   Использовать `ClinicJS Doctor` в связке с `autocannon` для анализа производительности.
+
+```shell
+clinic doctor --on-port 'autocannon -m POST localhost:8000/users/register' -- node dist/main.js
+```
+
+2. Анализ отчета:
+   Просмотр показателей, таких как задержка `Event Loop`, использование CPU и памяти, количества активных обработчиков.
+
+```Text
+>clinic doctor --on-port 'autocannon -m POST localhost:8000/users/register' -- node dist/main.js
+2025-05-09 15:30:37 INFO: [post] /register
+2025-05-09 15:30:37 INFO: [post] /login
+2025-05-09 15:30:37 INFO: Сервер запущен на http://localhost:8000
+Running 10s test @ http://localhost:8000/users/register
+10 connections
+
+
+┌─────────┬──────┬──────┬───────┬──────┬─────────┬─────────┬───────┐
+│ Stat    │ 2.5% │ 50%  │ 97.5% │ 99%  │ Avg     │ Stdev   │ Max   │
+├─────────┼──────┼──────┼───────┼──────┼─────────┼─────────┼───────┤
+│ Latency │ 0 ms │ 1 ms │ 5 ms  │ 8 ms │ 1.23 ms │ 1.49 ms │ 42 ms │
+└─────────┴──────┴──────┴───────┴──────┴─────────┴─────────┴───────┘
+┌───────────┬────────┬────────┬─────────┬─────────┬─────────┬────────┬────────┐
+│ Stat      │ 1%     │ 2.5%   │ 50%     │ 97.5%   │ Avg     │ Stdev  │ Min    │
+├───────────┼────────┼────────┼─────────┼─────────┼─────────┼────────┼────────┤
+│ Req/Sec   │ 3 979  │ 3 979  │ 6 163   │ 6 355   │ 5 925   │ 633,9  │ 3 978  │
+├───────────┼────────┼────────┼─────────┼─────────┼─────────┼────────┼────────┤
+│ Bytes/Sec │ 983 kB │ 983 kB │ 1.52 MB │ 1.57 MB │ 1.46 MB │ 157 kB │ 983 kB │
+└───────────┴────────┴────────┴─────────┴─────────┴─────────┴────────┴────────┘
+
+Req/Bytes counts sampled once per second.
+# of samples: 11
+
+65k requests in 11.04s, 16.1 MB read
+Analysing data
+Generated HTML file is file:///D:/Projects/node_abc/bin-api/.clinic/36332.clinic-doctor.html
+```
+
+3. Модификация приложения:
+   Добавление кода, вызывающего утечки памяти и блокировку `Event Loop` для наглядной демонстрации проблем с производительностью.
+
+Чтение большого файла синхронным способом, такой код приводит к блокировке основного потока.
+Пример плохого кода в `src\users\users.controller.ts`:
+
+```TypeScript
+// Временные импорты для экспериментов с производительностью
+import fs from 'fs';
+import { resolve } from 'path';
+
+// Будем использовать для экспериметров перерасхода памяти
+const data = [];
+
+...
+
+  register(req: Request, res: Response, next: NextFunction): void {
+    // Эксперимент для тестирования производительности
+    // Синхронно читаем файл и блокируем Event Loop
+    // __dirname является текущим каталогом, где находится файл
+    // data.push() используется чтобы израсходовать большой объем памяти
+    // Идеально плохой код для тестирования
+    data.push(fs.readFileSync(resolve(__dirname, '../../Auf_dem_Markt.mp4')));
+
+    // res используется для передачи контекста
+    // ok утилитарный метод базового контроллера
+    this.ok(res, 'Register...');
+  }
+...
+```
+
+4. Повторный запуск и анализ:
+   Наблюдение за изменениями в показателях производительности и получение рекомендаций по устранению проблем.
+
+### Анализ проблем приложения
+
+1. Чтение большого файла синхронным методом:
+   Приводит к блокировке `Event Loop`, замедляя обработку других запросов.
+2. Хранение данных в памяти:
+   Увеличение использования памяти и потенциальные утечки памяти.
+3. Диагностика с `ClinicJS Doctor`:
+   Позволяет наблюдать задержки в `Event Loop` и рекомендует дальнейшие шаги для углубленного анализа проблемы, например, использование `ClinicJS Flame` для визуализации `Flame Graph` и определения длительных операций.
+
+```Text
+> clinic doctor --on-port 'autocannon -m POST localhost:8000/users/register' -- node dist/main.js
+
+2025-05-09 16:37:55 INFO: [post] /register
+2025-05-09 16:37:55 INFO: [post] /login
+2025-05-09 16:37:55 INFO: Сервер запущен на http://localhost:8000
+Running 10s test @ http://localhost:8000/users/register
+10 connections
+
+┌─────────┬──────┬───────┬────────┬─────────┬───────────┬──────────┬─────────┐
+│ Stat    │ 2.5% │ 50%   │ 97.5%  │ 99%     │ Avg       │ Stdev    │ Max     │
+├─────────┼──────┼───────┼────────┼─────────┼───────────┼──────────┼─────────┤
+│ Latency │ 5 ms │ 63 ms │ 917 ms │ 1656 ms │ 124.38 ms │ 253.3 ms │ 2423 ms │
+└─────────┴──────┴───────┴────────┴─────────┴───────────┴──────────┴─────────┘
+┌───────────┬─────────┬─────────┬─────────┬─────────┬─────────┬─────────┬─────────┐
+│ Stat      │ 1%      │ 2.5%    │ 50%     │ 97.5%   │ Avg     │ Stdev   │ Min     │
+├───────────┼─────────┼─────────┼─────────┼─────────┼─────────┼─────────┼─────────┤
+│ Req/Sec   │ 13      │ 13      │ 24      │ 176     │ 74,5    │ 69,07   │ 13      │
+├───────────┼─────────┼─────────┼─────────┼─────────┼─────────┼─────────┼─────────┤
+│ Bytes/Sec │ 3.21 kB │ 3.21 kB │ 5.93 kB │ 43.5 kB │ 18.4 kB │ 17.1 kB │ 3.21 kB │
+└───────────┴─────────┴─────────┴─────────┴─────────┴─────────┴─────────┴─────────┘
+
+Req/Bytes counts sampled once per second.
+# of samples: 10
+
+755 requests in 10.1s, 184 kB read
+Analysing data
+Generated HTML file is file:///D:/Projects/node_abc/bin-api/.clinic/34988.clinic-doctor.html
+
+Doctor has found a potential Event Loop issue:
+There may be one or more long running synchronous operations blocking the thread
+Mitigate: Implement HTTP 503 event-loop protection
+Diagnose: Use clinic flame to discover CPU intensive function calls – run clinic flame -h
+Use --trace-sync-io to track synchronous I/O operations
+```

@@ -8,6 +8,13 @@ import { TYPES } from '../types';
 import { ILogger } from '../logger/logger.interface';
 import { IUserController } from './users.controller.interface';
 
+// Временные импорты для экспериментов с производительностью
+import fs from 'fs';
+import { resolve } from 'path';
+
+// Будем использовать для экспериметров перерасхода памяти
+const data = [];
+
 // Временные объекты пользователей для экспериментов с памятью
 class User {}
 const users = [];
@@ -42,6 +49,13 @@ export class UserController extends BaseController implements IUserController {
   }
 
   register(req: Request, res: Response, next: NextFunction): void {
+    // Эксперимент для тестирования производительности
+    // Синхронно читаем файл и блокируем Event Loop
+    // __dirname является текущим каталогом, где находится файл
+    // data.push() используется чтобы израсходовать большой объем памяти
+    // Идеально плохой код для тестирования
+    data.push(fs.readFileSync(resolve(__dirname, '../../Auf_dem_Markt.mp4')));
+
     // res используется для передачи контекста
     // ok утилитарный метод базового контроллера
     this.ok(res, 'Register...');
