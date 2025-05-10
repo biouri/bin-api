@@ -9,6 +9,7 @@ import { ILogger } from '../logger/logger.interface';
 import { IUserController } from './users.controller.interface';
 import { UserLoginDto } from './dto/user-login.dto';
 import { UserRegisterDto } from './dto/user-register.dto';
+import { User } from './user.entity';
 
 // Временные импорты для экспериментов с производительностью
 // import fs from 'fs';
@@ -57,6 +58,7 @@ export class UserController extends BaseController implements IUserController {
     next(new HTTPError(401, 'ошибка авторизации', 'login'));
   }
 
+  /*
   // Третий параметр в Request<{}, {}, UserRegisterDto> является ReqBody
   // ReqBody - это данные которые будут приходить методом POST UserRegisterDto
   // в качестве body будем использовать DTO объект
@@ -75,5 +77,29 @@ export class UserController extends BaseController implements IUserController {
     // res используется для передачи контекста
     // ok утилитарный метод базового контроллера
     this.ok(res, 'Register...');
+  }
+  */
+
+  // Пример использования User Entity при регистрации пользователя
+  // Деструктурируем только { body } из Request чтобы далее не писать req.body.
+  // Хорошая практика, если не используется более одного свойства из req.
+  // В данном методе body является DTO объектом UserRegisterDto
+  async register(
+    { body }: Request<{}, {}, UserRegisterDto>,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    // Создание пользователя User Entity выполняется в две строки
+    // 1. Применяется конструктор без пароля
+    // 2. Устанавливается Хеш пароля при помощи асинхронного метода setPassword
+    // Такой код лучше изменить и использовать фабричные методы создания User
+    // Также создание объекта User необходимо выполнять в сервисе
+    // Почему не стоит использовать setter для пароля:
+    // Возможен баг: объект создан без пароля, можно забыть вызвать setPassword!
+    // Нарушена консистентность: у объекта может быть "дырявое" состояние.
+    const newUser = new User(body.email, body.name);
+    await newUser.setPassword(body.password); // можно забыть вызвать!
+    // В качестве тестового ответа возвращаем созданный объект пользователя
+    this.ok(res, newUser);
   }
 }

@@ -34,6 +34,7 @@
 5.5. Мониторинг производительности
 6.1. Улучшение архитектуры
 6.2. Data transfer object
+6.3. User entity
 
 ## Git
 
@@ -78,6 +79,7 @@ git commit -m "Add Chrome DevTools Memory Analysis + Performance Optimization"
 git commit -m "Add ClinicJS Doctor + Autocannon Load Simulator"
 git commit -m "Add Architectural Improvements"
 git commit -m "Add Data Transfer Object DTO + body-parser Middleware"
+git commit -m "Add User Entity + mutable/immutable + consistent/non-consistent"
 ```
 
 ## 1.1. Простой http сервер
@@ -5389,3 +5391,292 @@ http POST http://localhost:8000/users/login email=test@mail.com password=testpas
 ### Валидация и безопасность
 
 Текущее состояние принимает объекты без валидации, что может привести к ошибкам.
+
+## 6.3. User entity
+
+`Entity` в программировании – это класс, описывающий бизнес-объекты и их логику. Это ключевой компонент в DDD и `clean architecture` Роберта Мартина.
+У класса Entity могут быть свои методы и свойства и внутри зашита бизнес-логика и бизнес-описания.
+
+Пример: В системе продажи автомобилей, сам автомобиль может быть представлен как `Entity`.
+
+### Особенности Entity
+
+1. Изоляция от системы:
+   Entity должна быть отделена от других системных элементов. Это означает, что ее реализация не зависит от баз данных, контроллеров или фреймворков.
+
+2. Концентрация бизнес-логики:
+   Вся бизнес-логика должна быть заключена в Entity. Это позволяет легко адаптироваться к изменениям в бизнес-требованиях. Пример бизнес-логики - получение ФИО пользователя одной строкой.
+
+### Создание User Entity
+
+1. Основные атрибуты:
+   Для пользователя, например, нужны `email`, `пароль` и `имя`. Эти атрибуты задаются через конструктор класса.
+
+2. Приватные поля и геттеры:
+   Поля класса делаются приватными, с возможностью чтения их через геттеры. Пароль хешируется для безопасности.
+
+3. Хеширование пароля:
+   Используется библиотека `bcrypt.js` для безопасного хранения паролей. Пароль не сохраняется в открытом виде, а хешируется с помощью "соли".
+
+Установка bcryptjs и types для bcryptjs
+
+```shell
+npm i bcryptjs
+npm i -D @types/bcryptjs
+```
+
+Описание функции hash из библиотеки bcryptjs
+
+```Text
+(alias) hash(password: string, salt: number | string): Promise<string> (+1 overload)
+import hash
+Asynchronously generates a hash for the given password.
+@param password — Password to hash
+@param salt — Salt length to generate or salt to use
+@return — Promise with resulting hash, if callback has been omitted
+```
+
+### Что такое мутабельный и немутабельный объект?
+
+#### Мутабельный объект (`mutable`):
+
+Это объект, состояние которого можно изменить после создания.
+
+Пример:
+
+```JavaScript
+const user = { name: 'Alice' };
+user.name = 'Bob'; // изменили имя — это мутабельность
+```
+
+#### Немутабельный объект (`immutable`):
+
+Это объект, состояние которого нельзя изменить после создания. Чтобы "изменить" его, нужно создать новый объект.
+
+Пример в котором создается новый объект updatedUser:
+
+```JavaScript
+const user = Object.freeze({ name: 'Alice' });
+const updatedUser = { ...user, name: 'Bob' }; // user остался неизменным
+user.name = 'Bob'; // Не сработает — в строгом режиме выбросит ошибку
+```
+
+- Object.freeze() делает объект user неизменяемым: нельзя изменить его свойства, удалить или добавить новые. Объект становится immutable (неизменяемым) — но только на верхнем уровне.
+- updatedUser — это новый объект, на него freeze() не влияет, можно его изменять, если нужно.
+
+Зачем это нужно?
+Немутабельность делает код предсказуемее.
+
+- Упрощает отладку и тестирование.
+- Полезна при работе с состоянием (например, в React, Redux).
+- Предотвращает ошибки от случайных изменений данных.
+
+### Аналоги в TypeScript
+
+TypeScript — это надмножество JavaScript, и `Object.freeze` в нём работает точно так же. Однако TypeScript предоставляет статические гарантии неизменяемости, которые могут быть более строгими, чем `Object.freeze`:
+
+Тип `Readonly<T>`
+
+```TypeScript
+type User = {
+  name: string;
+};
+
+const user: Readonly<User> = {
+  name: 'Alice'
+};
+
+user.name = 'Bob'; // Ошибка компиляции — нельзя изменять
+```
+
+`Readonly<T>` — встроенный тип, который делает все свойства только для чтения на уровне типов.
+
+Это работает во время компиляции, но не предотвращает изменения в рантайме (в отличие от `Object.freeze`).
+
+### Глубокая иммутабельность (рекурсивно)
+
+TypeScript не поддерживает `DeepReadonly<T>` из коробки, но можно реализовать самому:
+
+```TypeScript
+type DeepReadonly<T> = {
+  readonly [P in keyof T]: DeepReadonly<T[P]>;
+};
+```
+
+### Консистентный и неконсистентный объект
+
+#### Консистентный объект:
+
+Это объект, находящийся в допустимом и логически корректном состоянии.
+Объект user консистентен если все поля заполнены корректно, например, может быть требование к наличию пароля определенной длины и с определенными символами.
+
+#### Неконсистентный объект:
+
+Это объект, у которого внутренние данные противоречат логике или правилам. Например, система позволяет создавать обхект пользователя без пароля, хотя есть требования к наличию пароля.
+
+Класс `users\user.entity.ts` позволяет создавать неконсистентентные объекты без пароля, поскольку пароль устанавливается дополнительно после создания объекта пользователя.
+
+```TypeScript
+import { hash } from 'bcryptjs'; // Используем асинхронную функцию hash
+// Также есть синхронная функция hashSync
+
+// Иногда в именовании классов применяют слово Entity, например UserEntity
+export class User {
+  // Пароль хранится как хеш, недопустимо хранить пароль в открытом виде
+  // Для него создается асинхронный метод public async setPassword
+  // Нельзя создать setter т.к. setter не может быть асинхронным
+  private _password: string;
+
+  // Мы не можем менять объект Entity, после создания используем как есть.
+  // Теоретически для модифицируемых полей могут быть setter-методы.
+  // Конструктор в JavaScript и TypeScript не может быть асинхронным,
+  // он не может быть помечен как async и не может использовать await внутри.
+  constructor(
+    private readonly _email: string,
+    private readonly _name: string
+  ) {}
+
+  get email(): string {
+    return this._email;
+  }
+
+  get name(): string {
+    return this._name;
+  }
+
+  get password(): string {
+    return this._password;
+  }
+
+  // Нельзя создать setter т.к. setter не может быть асинхронным
+  public async setPassword(pass: string): Promise<void> {
+    // В дальнейшем вторым параметром будет соль, которая хранится в конфигурации
+    // Сохраняем захешированный пароль
+    this._password = await hash(pass, 10);
+  }
+}
+```
+
+Немутабельный и консистентный класс User в стиле DDD (Domain-Driven Design)
+Как пример для сравнения с классом выше.
+
+`users\userEntity.ts`
+
+```TypeScript
+import { hash } from 'bcryptjs';
+
+// User entity (с приватным конструктором и фабрикой)
+// немутабельный и консистентный класс User в стиле DDD (Domain-Driven Design)
+// с readonly свойствами, без setter-ов и с асинхронным созданием.
+// Пример, как можно правильно и безопасно создать пользователя
+// с использованием асинхронного фабричного метода User.create(...)
+
+// Преимущества такого подхода:
+// ✔️ Хеширование пароля гарантировано.
+// ✔️ Консистентные объекты (всегда в валидном состоянии).
+
+// Зачем так делать?
+// ✔️ Безопасность — нельзя создать объект с незахешированным паролем.
+// ✔️ Инкапсуляция — всё управление логикой создания и валидации сосредоточено в одном месте.
+// ✔️ Нельзя "сломать" объект извне.
+// ✔️ Консистентность — пользователь создается всегда в корректном состоянии.
+// ✔️ Немутабельность — состояние не может быть изменено после создания.
+
+export class User {
+  private constructor(
+    private readonly _email: string,
+    private readonly _name: string,
+    private readonly _password: string // уже хеш
+  ) {}
+
+  get email(): string {
+    return this._email;
+  }
+
+  get name(): string {
+    return this._name;
+  }
+
+  get password(): string {
+    return this._password;
+  }
+
+  // Фабрика для создания объекта с хешированием пароля
+  // Почему лучше использовать фабричный метод:
+  // ✔️ Хеш всегда применяется.
+  // ✔️ Объект гарантированно готов к использованию.
+  // ✔️ Нельзя обойти правила создания (например, установить сырой пароль).
+  public static async create(email: string, name: string, plainPassword: string): Promise<User> {
+    const hashedPassword = await hash(plainPassword, 10);
+    return new User(email, name, hashedPassword);
+  }
+}
+```
+
+Что запрещено с этим классом:
+
+```TypeScript
+const user = await User.create('email@mail.com', 'Alice', '123456');
+user.name = 'Bob'; // ❌ Ошибка: name — readonly
+user.password = 'plain'; // ❌ Ошибка: password — readonly
+```
+
+### Применение User Entity
+
+Регистрация пользователя: Пример использования `Entity` при регистрации нового пользователя, демонстрирует создание экземпляра пользователя и установку его пароля.
+
+`users\users.controller.ts`
+
+```TypeScript
+import { User } from './user.entity';
+...
+
+  // Пример использования User Entity при регистрации пользователя
+  // Деструктурируем только { body } из Request чтобы далее не писать req.body.
+  // Хорошая практика, если не используется более одного свойства из req.
+  // В данном методе body является DTO объектом UserRegisterDto
+  async register(
+    { body }: Request<{}, {}, UserRegisterDto>,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    // Создание пользователя User Entity выполняется в две строки
+    // 1. Применяется конструктор без пароля
+    // 2. Устанавливается Хеш пароля при помощи асинхронного метода setPassword
+    // Такой код лучше изменить и использовать фабричные методы создания User
+    // Также создание объекта User необходимо выполнять в сервисе
+    const newUser = new User(body.email, body.name);
+    await newUser.setPassword(body.password);
+    // В качестве тестового ответа возвращаем созданный объект пользователя
+    this.ok(res, newUser);
+  }
+```
+
+Тестирование
+
+```shell
+npm run dev
+http POST http://localhost:8000/users/register email=test@mail.com password=testpass name=Yury
+```
+
+Результат
+
+```Text
+> npm run dev
+> http POST http://localhost:8000/users/register email=test@mail.com password=testpass name=Yury
+
+HTTP/1.1 200 OK
+Connection: keep-alive
+Content-Length: 116
+Content-Type: application/json; charset=utf-8
+Date: Sat, 10 May 2025 13:13:56 GMT
+ETag: W/"74-XgwpRUa7IaMSJPw60z+sKsCURic"
+Keep-Alive: timeout=5
+X-Powered-By: Express
+
+{
+    "_email": "test@mail.com",
+    "_name": "Yury",
+    "_password": "$2b$10$6ITwpnFMtEoka7oQfU7jAutMrxuo1a913jzl.8mO62nfIYwvXlNMm"
+}
+```
