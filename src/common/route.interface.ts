@@ -1,4 +1,5 @@
 import { NextFunction, Request, Response, Router } from 'express';
+import { IMiddleware } from './middleware.interface';
 
 // Роут контроллера
 export interface IControllerRoute {
@@ -13,6 +14,8 @@ export interface IControllerRoute {
   method: keyof Pick<Router, 'get' | 'post' | 'delete' | 'patch' | 'put'>;
   // Возможна запись ниже, но без гарантии соответствия возможным методам
   // method: 'get' | 'post' | 'delete' | 'patch' | 'put';
+  // Массив необязательных обработчиков, передают управление в next
+  middlewares?: IMiddleware[];
 }
 
 export type ExpressReturnType = Response<any, Record<string, any>>;

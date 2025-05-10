@@ -36,6 +36,8 @@
 6.2. Data transfer object
 6.3. User entity
 6.4. Сервис Users
+6.5. Middleware для роутов
+6.6. Валидация данных
 
 ## Git
 
@@ -82,6 +84,7 @@ git commit -m "Add Architectural Improvements"
 git commit -m "Add Data Transfer Object DTO + body-parser Middleware"
 git commit -m "Add User Entity + mutable/immutable + consistent/non-consistent"
 git commit -m "Add UserService"
+git commit -m "Add Middleware Routes + DTO Validator"
 ```
 
 ## 1.1. Простой http сервер
@@ -5849,4 +5852,264 @@ import { UserService } from './users.service';
     // В данном случае отправлять будем только email
     this.ok(res, { email: result.email });
   }
+```
+
+## 6.5. Middleware для роутов
+
+Добавление возможности использовать `middleware` в пути (роутах) и управление потоком запросов через них.
+
+- `Middleware` представляет собой функциональность, которая может быть внедрена в процесс маршрутизации для предварительной обработки запросов или ответов.
+- Возможность добавления `middleware` к роутам позволяет эффективно управлять потоком запросов, реализовывать валидацию, авторизацию и другие общие задачи перед достижением конечного обработчика.
+- Создание гибкого `pipeline` из `middleware` и хендлеров позволяет настроить порядок обработки запросов и ответов по требованию приложения.
+
+До внедрения `Middleware` код контроллера `users\users.controller.ts` содержал биндинг маршрутов в виде массива данных соответствующих интерфесу `IControllerRoute`:
+
+```TypeScript
+    this.bindRoutes([
+      { path: '/register', method: 'post', func: this.register },
+      { path: '/login', method: 'post', func: this.login }
+    ]);
+```
+
+### Основные Шаги
+
+1. Расширение структуры роута
+
+   - Введение поля `middlewares` в интерфейс роута (`IControllerRoute`).
+   - `middlewares` является массивом, элементами которого являются объекты, удовлетворяющие интерфейсу `IMiddleware`.
+
+`common\route.interface.ts`
+
+```TypeScript
+import { NextFunction, Request, Response, Router } from 'express';
+import { IMiddleware } from './middleware.interface';
+
+// Роут контроллера
+export interface IControllerRoute {
+  path: string;
+  func: (req: Request, res: Response, next: NextFunction) => void;
+  method: keyof Pick<Router, 'get' | 'post' | 'delete' | 'patch' | 'put'>;
+  // Массив необязательных обработчиков, передают управление в next
+  middlewares?: IMiddleware[];
+}
+```
+
+2. Создание интерфейса middleware (`IMiddleware`)
+
+   - Определение одного метода `execute`, который принимает `request`, `response`, и `next function`, возвращая `void`.
+   - Метод `execute` модифицирует запрос или ответ, а затем вызывает `next`, передавая управление следующему обработчику.
+
+`common\middleware.interface.ts`
+
+```TypeScript
+import { NextFunction, Request, Response } from 'express';
+
+export interface IMiddleware {
+  execute: (req: Request, res: Response, next: NextFunction) => void;
+}
+```
+
+3. Внедрение Middleware в Процесс Маршрутизации
+
+   - Перебор middleware из роута и создание константы, сохраняющей контекст для каждого middleware (`m.execute.bind(самого себя)`).
+   - Создание `pipeline` из middleware и хендлера, где порядок middleware определяется порядком в массиве. Если middleware отсутствует, используется только хендлер.
+
+Предыдущая реализация `common\base.controller.ts` для сравнения:
+
+```TypeScript
+  protected bindRoutes(routes: IControllerRoute[]): void {
+    for (const route of routes) {
+      // Логгируем все биндинги, для тестирования
+      this.logger.log(`[${route.method}] ${route.path}`);
+      // Чтобы не терять контекст выполнения функции
+      // Сохраненяем контекст this и связываем с функцией
+      // В данном случае это контекст контроллера
+      const handler = route.func.bind(this);
+      this.router[route.method](route.path, handler);
+    }
+  }
+```
+
+Обновленная реализация `common\base.controller.ts`:
+
+```TypeScript
+  protected bindRoutes(routes: IControllerRoute[]): void {
+    for (const route of routes) {
+      // Логгируем все биндинги, для тестирования
+      this.logger.log(`[${route.method}] ${route.path}`);
+      // Чтобы не терять контекст выполнения функции
+      // Сохраненяем контекст this и связываем с функцией
+      // В данном случае это контекст контроллера
+      const middleware = route.middlewares?.map((m) => m.execute.bind(m));
+      const handler = route.func.bind(this);
+      // При наличии middleware отработать сначала их.
+      // Порядок middleware определяется порядком в массиве.
+      // Если middleware отсутствует, используется только хендлер.
+      const pipeline = middleware ? [...middleware, handler] : handler;
+      this.router[route.method](route.path, pipeline);
+    }
+  }
+```
+
+4. Применение Middleware
+
+   - Пример `UserController`, где необходимо предварительно обработать метод `register` с помощью массива `middlewares`.
+   - Добавление middleware для валидации данных, который либо передает управление следующему обработчику в случае успеха, либо триггирует ошибку при невалидности данных.
+
+```TypeScript
+  this.bindRoutes([
+    { path: '/register', method: 'post', func: this.register, middlewares: [...] },
+    { path: '/login', method: 'post', func: this.login, middlewares: [...] }
+  ]);
+```
+
+## 6.6. Валидация данных
+
+### Шаги Создания Middleware
+
+1. Описание Middleware:
+
+   - Разработайте `validate.middleware.ts`.
+   - Этот Middleware должен имплементировать интерфейс `IMiddleware`.
+   - Необходимо реализуйте метод `execute` с параметрами request и response, и возвращающий `void`.
+
+2. Использование Валидации:
+
+   - Валидацию реализуется через библиотеки `class-validator` и `class-transformer`.
+   - `Class-validator` позволяет использовать декораторы для описания правил валидации.
+   - `Class-transformer` позволит преобразовывать объекты в классы и обратно, необходимо для работы с DTO.
+
+Установка библиотек:
+
+```shell
+npm i class-validator
+npm i class-transformer
+```
+
+3. Работа с Библиотеками:
+
+   - Из запроса приходит `body`, с которым будет происходить работа.
+   - Используется класс (DTO), который будет валидироваться, с помощью конструктора в middleware.
+
+4. Процесс Валидации:
+
+   - Полученный объект преобразуется в класс с помощью `class-transformer`.
+   - Затем, используя функцию `validate` из `class-validator`, валидируется полученный объект.
+   - В случае ошибок, возвращается их массив и статус 422.
+   - Если ошибок нет, вызывается функция `next` для перехода к следующему обработчику.
+
+`common\validate.middleware.ts`
+
+```TypeScript
+import { IMiddleware } from './middleware.interface';
+import { NextFunction, Request, Response } from 'express';
+import { ClassConstructor, plainToClass } from 'class-transformer';
+import { validate } from 'class-validator';
+
+export class ValidateMiddleware implements IMiddleware {
+  // classToValidate - какой класс будем валидировать
+  // Сырой body (который является объектом) преобразовать к этому классу
+  constructor(private classToValidate: ClassConstructor<object>) {}
+
+  execute({ body }: Request, res: Response, next: NextFunction): void {
+    // Берем body и преобразовываем в класс того типа,
+    // который изначально передавался в конструктор и замем валидируем
+    const instance = plainToClass(this.classToValidate, body);
+    // validate принимает instance класса и выдает ошибки при наличии
+    validate(instance).then((errors) => {
+      if (errors.length > 0) {
+        // Отправляем массив ошибок со статусом 422: Неверные данные
+        // С помощью декораторов можно описать текстовые значения ошибок
+        res.status(422).send(errors);
+      } else {
+        // Нет ошибок: переходим к следующему обработчику
+        next();
+      }
+    });
+  }
+}
+```
+
+### Пример Применения в контроллере регистрации
+
+1. Применить созданный middleware для валидации DTO регистрации (`UserRegisterDTO`).
+
+```TypeScript
+import { ValidateMiddleware } from '../common/validate.middleware';
+  ...
+    // Контроллер принимает дополнительный ValidateMiddleware
+    // ValidateMiddleware вызывает валидацию от класса UserRegisterDto
+    this.bindRoutes([
+      {
+        path: '/register',
+        method: 'post',
+        func: this.register,
+        middlewares: [new ValidateMiddleware(UserRegisterDto)]
+      },
+      { path: '/login', method: 'post', func: this.login }
+    ]);
+  ...
+```
+
+2. Добавить в DTO декораторы валидации (`@Email`, `@String` и другие) для необходимых полей.
+
+`users\dto\user-register.dto.ts`
+
+```TypeScript
+import { IsEmail, IsString } from 'class-validator';
+
+export class UserRegisterDto {
+  @IsEmail({}, { message: 'Неверно указан email' })
+  email: string;
+
+  @IsString({ message: 'Не указан пароль' })
+  password: string;
+
+  @IsString({ message: 'Не указано имя' })
+  name: string;
+}
+```
+
+Также необходима валидация на Frontend, но она никогда не заменяет валидацию на Backend.
+
+3. Теперь данные, получаемые в этом контроллере, будут автоматически валидироваться перед обработкой.
+
+Тестирование с некорректным email
+
+```shell
+npm run dev
+http POST http://localhost:8000/users/register email=testmail.com password=testpass name=Yury
+```
+
+Результат: Ошибка со статусом 422 Unprocessable Entity
+Ошибка генерируется при помощи `class-validator`. Эту ошибку можно сгенерировать также в другом формате.
+
+```Text
+> npm run dev
+> http POST http://localhost:8000/users/register email=testmail.com password=testpass name=Yury
+
+HTTP/1.1 422 Unprocessable Entity
+Connection: keep-alive
+Content-Length: 191
+Content-Type: application/json; charset=utf-8
+Date: Sat, 10 May 2025 21:23:38 GMT
+ETag: W/"bf-sdnA5LktUwjyqAin7C2TPj9ciYU"
+Keep-Alive: timeout=5
+X-Powered-By: Express
+
+[
+    {
+        "children": [],
+        "constraints": {
+            "isEmail": "Неверно указан email"
+        },
+        "property": "email",
+        "target": {
+            "email": "testmail.com",
+            "name": "Yury",
+            "password": "testpass"
+        },
+        "value": "testmail.com"
+    }
+]
 ```

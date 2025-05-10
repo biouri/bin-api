@@ -11,6 +11,7 @@ import { UserLoginDto } from './dto/user-login.dto';
 import { UserRegisterDto } from './dto/user-register.dto';
 import { User } from './user.entity';
 import { UserService } from './users.service';
+import { ValidateMiddleware } from '../common/validate.middleware';
 
 // Временные импорты для экспериментов с производительностью
 // import fs from 'fs';
@@ -33,8 +34,15 @@ export class UserController extends BaseController implements IUserController {
     @inject(TYPES.UserService) private userService: UserService
   ) {
     super(loggerService);
+    // Контроллер принимает дополнительный ValidateMiddleware
+    // ValidateMiddleware вызывает валидацию от класса UserRegisterDto
     this.bindRoutes([
-      { path: '/register', method: 'post', func: this.register },
+      {
+        path: '/register',
+        method: 'post',
+        func: this.register,
+        middlewares: [new ValidateMiddleware(UserRegisterDto)]
+      },
       { path: '/login', method: 'post', func: this.login }
     ]);
   }

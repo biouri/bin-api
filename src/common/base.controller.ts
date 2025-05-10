@@ -45,8 +45,13 @@ export abstract class BaseController {
       // Чтобы не терять контекст выполнения функции
       // Сохраненяем контекст this и связываем с функцией
       // В данном случае это контекст контроллера
+      const middleware = route.middlewares?.map((m) => m.execute.bind(m));
       const handler = route.func.bind(this);
-      this.router[route.method](route.path, handler);
+      // При наличии middleware отработать сначала их.
+      // Порядок middleware определяется порядком в массиве.
+      // Если middleware отсутствует, используется только хендлер.
+      const pipeline = middleware ? [...middleware, handler] : handler;
+      this.router[route.method](route.path, pipeline);
     }
   }
 
