@@ -35,6 +35,7 @@
 6.1. Улучшение архитектуры
 6.2. Data transfer object
 6.3. User entity
+6.4. Сервис Users
 
 ## Git
 
@@ -80,6 +81,7 @@ git commit -m "Add ClinicJS Doctor + Autocannon Load Simulator"
 git commit -m "Add Architectural Improvements"
 git commit -m "Add Data Transfer Object DTO + body-parser Middleware"
 git commit -m "Add User Entity + mutable/immutable + consistent/non-consistent"
+git commit -m "Add UserService"
 ```
 
 ## 1.1. Простой http сервер
@@ -5679,4 +5681,172 @@ X-Powered-By: Express
     "_name": "Yury",
     "_password": "$2b$10$6ITwpnFMtEoka7oQfU7jAutMrxuo1a913jzl.8mO62nfIYwvXlNMm"
 }
+```
+
+## 6.4. Сервис Users
+
+1. Разделение роутинга и бизнес-логики в приложении.
+2. Создание сервиса пользователей (`UserService`) для обработки бизнес-логики, связанной с пользователями.
+
+### Шаги Реализации:
+
+1. План Разделения:
+
+   - Роутинг обрабатывается контроллером.
+   - Бизнес-логика выносится в сервис пользователей (`UserService`).
+
+2. Создание UserService:
+
+   - Файл `users.service.ts` для кода сервиса.
+   - Файл `users.service.interface.ts` для интерфейса сервиса, нужен для Dependency Injection.
+
+3. Определение Интерфейса UserService:
+
+   - Метод `createUser` для создания пользователя.
+   - Метод `validateUser` для проверки правильности данных пользователя.
+
+```TypeScript
+import { UserRegisterDto } from './dto/user-register.dto';
+import { User } from './user.entity';
+
+// В Сервис приходят DTO, например UserRegisterDto или UserLoginDto
+// Методы сервиса обычно возвращают Entity, null или boolean
+export interface IUserService {
+  // При успешном создании возвращается User Entity
+  // null возвращается если такой пользователь уже есть
+  createUser: (dto: UserRegisterDto) => Promise<User | null>;
+  validateUser: (dto: UserLoginDto) => Promise<boolean>;
+}
+```
+
+4. Реализация UserService:
+
+   - Класс `UserService implenents IUserService`.
+   - Реализация метода `createUser`, принимает DTO (Data Transfer Object) пользователя, возвращает пользователя или `null`.
+   - Реализация метода `validateUser`, возвращает `boolean` в зависимости от проверки пользователя.
+
+`main.ts`
+
+```TypeScript
+import { IUserController } from './users/users.controller.interface';
+import { UserController } from './users/users.controller';
+import { IUserService } from './users/users.service.interface';
+import { UserService } from './users/users.service';
+...
+export const appBindings = new ContainerModule(({ bind }) => {
+  // Интерфейс IService... биндится на конкретную реализацию Service...
+  ...
+  bind<IUserController>(TYPES.UserController).to(UserController);
+  bind<IUserService>(TYPES.UserService).to(UserService);
+  ...
+});
+```
+
+5. Интеграция с Контроллером:
+
+   - Инъекция сервиса (`UserService`) в контроллер для использования его методов.
+
+`users\users.controller.ts`
+
+```TypeScript
+import { UserService } from './users.service';
+
+@injectable()
+export class UserController extends BaseController implements IUserController {
+  // Декоратор @inject принимает ключ TYPES.UserService
+  // для внедрения зависимости
+  // Управлять зависимостями будет inversify
+  constructor(
+    @inject(TYPES.ILogger) private loggerService: ILogger,
+    @inject(TYPES.UserService) private userService: UserService
+  ) {
+    ...
+  }
+  ...
+}
+```
+
+6. Бизнес-Логика:
+
+   - Логика создания пользователя: если пользователь с таким email уже существует, возвращается `null`; иначе создается новый пользователь.
+   - Принцип проверки уникальности email как бизнес-правило.
+
+`users\users.service.ts`
+
+```TypeScript
+import 'reflect-metadata';
+import { injectable } from 'inversify';
+import { UserLoginDto } from './dto/user-login.dto';
+import { UserRegisterDto } from './dto/user-register.dto';
+import { User } from './user.entity';
+import { IUserService } from './users.service.interface';
+
+// Сервис может работать только с репозиторием
+@injectable()
+export class UserService implements IUserService {
+  async createUser({ email, name, password }: UserRegisterDto): Promise<User | null> {
+    // Бизнес-логика создания пользователя
+
+    // Создание пользователя User Entity выполняется в две строки
+    // 1. Применяется конструктор без пароля
+    // 2. Устанавливается Хеш пароля при помощи асинхронного метода setPassword
+    // Такой код лучше изменить и использовать фабричные методы создания User
+    // Также создание объекта User необходимо выполнять в сервисе
+    // Почему не стоит использовать setter для пароля:
+    // Возможен баг: объект создан без пароля, можно забыть вызвать setPassword!
+    // Нарушена консистентность: у объекта может быть "дырявое" состояние.
+    const newUser = new User(email, name);
+    await newUser.setPassword(password);
+    // проверка что он есть?
+    // если есть - возвращаем null
+    // если нет - создаём
+    return null;
+  }
+
+  async validateUser(dto: UserLoginDto): Promise<boolean> {
+    return true;
+  }
+}
+```
+
+7. Работа с API и Обработка Ошибок:
+
+   - Контроллер обрабатывает результаты выполнения бизнес-логики и формирует соответствующий ответ API.
+   - При ошибке создания пользователя (если уже существует) возвращается ошибка HTTP с кодом 422.
+
+`users\users.controller.ts`
+
+```TypeScript
+import { UserService } from './users.service';
+
+  ...
+
+  // Пример использования User Service при регистрации пользователя
+  // Деструктурируем только { body } из Request чтобы далее не писать req.body.
+  // Хорошая практика, если не используется более одного свойства из req.
+  // В данном методе body является DTO объектом UserRegisterDto
+  async register(
+    { body }: Request<{}, {}, UserRegisterDto>,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    // Контроллер отвечает за роутинг и входные/выходные данные
+    // Сервис отвечает за бизнес-логику
+
+    // Последовательность действия в методе контроллера:
+    // 1. Получить входные данные
+    // 2. Преобразовать входные данные
+    // 3. Воспользваться сервисом для бизнес-операций
+    // 4. Преобразовать результирующие данные полученные от Сервиса
+    // 5. Отправить результирующие данные в ответ
+
+    // Создание пользователя User Entity выполняется в сервисе
+    const result = await this.userService.createUser(body);
+    if (!result) {
+      return next(new HTTPError(422, 'Такой пользователь уже существует'));
+    }
+    // Можем выполнить дополнительные преобразование результата для отправки
+    // В данном случае отправлять будем только email
+    this.ok(res, { email: result.email });
+  }
 ```

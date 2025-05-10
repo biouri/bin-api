@@ -3,9 +3,12 @@ import { App } from './app';
 import { Container, ContainerModule, ContainerModuleLoadOptions } from 'inversify';
 import { ILogger } from './logger/logger.interface';
 import { LoggerService } from './logger/logger.service';
+import { IUserController } from './users/users.controller.interface';
 import { UserController } from './users/users.controller';
 import { IExceptionFilter } from './errors/exception.filter.interface';
 import { ExceptionFilter } from './errors/exception.filter';
+import { IUserService } from './users/users.service.interface';
+import { UserService } from './users/users.service';
 import { TYPES } from './types';
 
 export interface IBootstrapReturn {
@@ -81,7 +84,8 @@ export const appBindings = new ContainerModule(({ bind }) => {
   bind<IExceptionFilter>(TYPES.ExceptionFilter).to(ExceptionFilter);
   // Не обязательно создавать интерфейсы для каждой реализацияи
   // Есть одна конкретная реализация UserController без использования интерфейса
-  bind<UserController>(TYPES.UserController).to(UserController);
+  bind<IUserController>(TYPES.UserController).to(UserController);
+  bind<IUserService>(TYPES.UserService).to(UserService);
   bind<App>(TYPES.Application).to(App);
 });
 

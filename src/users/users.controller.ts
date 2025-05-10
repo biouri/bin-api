@@ -10,6 +10,7 @@ import { IUserController } from './users.controller.interface';
 import { UserLoginDto } from './dto/user-login.dto';
 import { UserRegisterDto } from './dto/user-register.dto';
 import { User } from './user.entity';
+import { UserService } from './users.service';
 
 // Временные импорты для экспериментов с производительностью
 // import fs from 'fs';
@@ -27,7 +28,10 @@ import { User } from './user.entity';
 export class UserController extends BaseController implements IUserController {
   // Декоратор @inject принимает ключ TYPES.ILogger для внедрения зависимости
   // Управлять зависимостями будет inversify
-  constructor(@inject(TYPES.ILogger) private loggerService: ILogger) {
+  constructor(
+    @inject(TYPES.ILogger) private loggerService: ILogger,
+    @inject(TYPES.UserService) private userService: UserService
+  ) {
     super(loggerService);
     this.bindRoutes([
       { path: '/register', method: 'post', func: this.register },
@@ -80,7 +84,7 @@ export class UserController extends BaseController implements IUserController {
   }
   */
 
-  // Пример использования User Entity при регистрации пользователя
+  // Пример использования User Service при регистрации пользователя
   // Деструктурируем только { body } из Request чтобы далее не писать req.body.
   // Хорошая практика, если не используется более одного свойства из req.
   // В данном методе body является DTO объектом UserRegisterDto
@@ -89,17 +93,23 @@ export class UserController extends BaseController implements IUserController {
     res: Response,
     next: NextFunction
   ): Promise<void> {
-    // Создание пользователя User Entity выполняется в две строки
-    // 1. Применяется конструктор без пароля
-    // 2. Устанавливается Хеш пароля при помощи асинхронного метода setPassword
-    // Такой код лучше изменить и использовать фабричные методы создания User
-    // Также создание объекта User необходимо выполнять в сервисе
-    // Почему не стоит использовать setter для пароля:
-    // Возможен баг: объект создан без пароля, можно забыть вызвать setPassword!
-    // Нарушена консистентность: у объекта может быть "дырявое" состояние.
-    const newUser = new User(body.email, body.name);
-    await newUser.setPassword(body.password); // можно забыть вызвать!
-    // В качестве тестового ответа возвращаем созданный объект пользователя
-    this.ok(res, newUser);
+    // Контроллер отвечает за роутинг и входные/выходные данные
+    // Сервис отвечает за бизнес-логику
+
+    // Последовательность действия в методе контроллера:
+    // 1. Получить входные данные
+    // 2. Преобразовать входные данные
+    // 3. Воспользваться сервисом для бизнес-операций
+    // 4. Преобразовать результирующие данные полученные от Сервиса
+    // 5. Отправить результирующие данные в ответ
+
+    // Создание пользователя User Entity выполняется в сервисе
+    const result = await this.userService.createUser(body);
+    if (!result) {
+      return next(new HTTPError(422, 'Такой пользователь уже существует'));
+    }
+    // Можем выполнить дополнительные преобразование результата для отправки
+    // В данном случае отправлять будем только email
+    this.ok(res, { email: result.email });
   }
 }
