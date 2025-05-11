@@ -1,4 +1,4 @@
-import { hash } from 'bcryptjs'; // Используем асинхронную функцию hash
+import { compare, hash } from 'bcryptjs'; // Используем асинхронную функцию hash
 // Также есть синхронная функция hashSync
 
 // Иногда в именовании классов применяют слово Entity, например UserEntity
@@ -12,10 +12,17 @@ export class User {
   // Теоретически для модифицируемых полей могут быть setter-методы.
   // Конструктор в JavaScript и TypeScript не может быть асинхронным,
   // он не может быть помечен как async и не может использовать await внутри.
+
+  // Добавлена возможность конструировать пользователя с опциональным Хешем
   constructor(
     private readonly _email: string,
-    private readonly _name: string
-  ) {}
+    private readonly _name: string,
+    passwordHash?: string // Опциональный Хеш
+  ) {
+    if (passwordHash) {
+      this._password = passwordHash;
+    }
+  }
 
   get email(): string {
     return this._email;
@@ -34,5 +41,9 @@ export class User {
     // В дальнейшем вторым параметром будет соль, которая хранится в конфигурации
     // Сохраняем захешированный пароль
     this._password = await hash(pass, salt);
+  }
+
+  public async comparePassword(pass: string): Promise<boolean> {
+    return compare(pass, this._password);
   }
 }

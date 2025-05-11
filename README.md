@@ -41,6 +41,7 @@
 7.1. Сервис конфигурации
 7.2. Работа с Prisma
 7.3. Репозиторий Users
+7.4. Простая проверка авторизации - Логин пользователя
 
 ## Git
 
@@ -90,7 +91,12 @@ git commit -m "Add UserService"
 git commit -m "Add Middleware Routes + DTO Validator"
 git commit -m "Add Config Singleton Service + dotenv + Example .env"
 git commit -m "Add ORM Prisma + UsersRepository"
+git commit -m "Add Simple User Login Password Validation"
 ```
+
+## Дополнительные темы
+
+`Mapper` для преобразования моделей в сущности.
 
 ## 1.1. Простой http сервер
 
@@ -6796,5 +6802,187 @@ X-Powered-By: Express
 {
     "email": "test@mail.com",
     "id": 1
+}
+```
+
+## 7.4. Простая проверка авторизации - Логин пользователя
+
+Реализация проверки авторизации пользователя по логину и паролю без создания JWT-токена.
+
+### Шаги выполнения:
+
+1. Валидация входных данных:
+
+   - В `UserService`, добавляется метод `validateUser`, который будет проверять пользователя на существование в базе и валидировать его данные.
+   - Использовать DTO для логина для проверки корректности данных (добавить необходимые декораторы).
+   - Добавить `middleware` для валидации данных, переданных на `endpoint` логина.
+
+В `users\dto\user-login.dto.ts` необходимо добавить декораторы для валидации.
+
+```TypeScript
+import { IsEmail, IsString } from 'class-validator';
+
+export class UserLoginDto {
+  @IsEmail({}, { message: 'Неверно указан email' })
+  email: string;
+
+  @IsString()
+  password: string;
+}
+```
+
+Добавление метода сравнения паролей в `users\user.entity.ts` и модификация конструктора.
+
+```TypeScript
+import { compare, hash } from 'bcryptjs'; // Используем асинхронную функцию hash
+
+// Иногда в именовании классов применяют слово Entity, например UserEntity
+export class User {
+  // Добавлена возможность конструировать пользователя с опциональным Хешем
+  constructor(
+    private readonly _email: string,
+    private readonly _name: string,
+    passwordHash?: string // Опциональный Хеш
+  ) {
+    if (passwordHash) {
+      this._password = passwordHash;
+    }
+  }
+
+  // Пароль хранится как хеш, недопустимо хранить пароль в открытом виде
+  ...
+  public async comparePassword(pass: string): Promise<boolean> {
+    return compare(pass, this._password);
+  }
+}
+```
+
+2. Реализация метода логина:
+
+   - Создать второй метод логина в контроллере.
+   - Метод принимает логин и пароль, ищет пользователя в БД. Если пользователь найден, производится сравнение хэшей паролей.
+   - Если данные корректны, возвращает пустой объект (в будущем здесь будет генерироваться JWT-токен), иначе возвращает ошибку авторизации (401).
+
+3. Работа с паролями:
+
+   - В реализации использовать функцию сравнения хэшей паролей (например, через `bcrypt.compare`) без сохранения исходного пароля в открытом виде.
+   - Расширить класс пользователя добавлением хэша пароля для упрощения сравнения.
+
+В `users\users.service.ts` найти пользователя по email:
+
+```TypeScript
+  async validateUser({ email, password }: UserLoginDto): Promise<boolean> {
+    // Поиск пользователя в БД
+    const existedUser = await this.usersRepository.find(email);
+    if (!existedUser) {
+      return false; // Нет такого пользователя
+    }
+    // Конструируем пользователя
+    const newUser = new User(existedUser.email, existedUser.name, existedUser.password);
+    // Проверяем совпадение пароля - это результат валидации пароля
+    return newUser.comparePassword(password);
+  }
+```
+
+4. Дополнительные моменты:
+
+   - Обратить внимание на использование правильных DTO для логина и регистрации.
+   - Проверить корректность возвращаемых ошибок и результатов действий.
+   - Рассмотреть возможность оптимизации через введение `Mapper` для преобразования моделей в сущности. Это функция, которая упрощает создание Entity из Model-ей чтобы не усложнять конструкторы Entity.
+
+Внесение изменений в метод login `users\users.controller.ts` и добавление `middlewares` для валидации:
+
+```TypeScript
+...
+@injectable()
+export class UserController extends BaseController implements IUserController {
+  constructor(
+    @inject(TYPES.ILogger) private loggerService: ILogger,
+    @inject(TYPES.UserService) private userService: UserService
+  ) {
+    ...
+    this.bindRoutes([
+      ...
+      {
+        path: '/login',
+        method: 'post',
+        func: this.login,
+        middlewares: [new ValidateMiddleware(UserLoginDto)]
+      }
+    ]);
+  }
+  ...
+
+  // Третий параметр в Request<{}, {}, UserLoginDto> является ReqBody
+  // ReqBody - это данные которые будут приходить методом POST UserLoginDto
+  // в качестве body будем использовать DTO объект
+  async login(
+    req: Request<{}, {}, UserLoginDto>,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    // Для JSON используется body-parser, он парсит UserLoginDto в req.body
+    console.log(req.body); // body будет UserLoginDto
+    // req.body является UserLoginDto и его можно использоват далее как объект
+
+    console.log('. Точка отладки .');
+
+    // Валидация пользователя по паролю
+    const result = await this.userService.validateUser(req.body);
+    // Если валидация по паролю не пройдена
+    if (!result) {
+      return next(new HTTPError(401, 'ошибка авторизации', 'login'));
+    }
+    // Если валидация по паролю успешна, возвращаем пустой body
+    this.ok(res, {});
+  }
+...
+}
+```
+
+### Пример выполнения:
+
+1. При успешном логине возвращается пустой объект (статус `200`).
+2. При неправильно введенном пароле возвращается ошибка авторизации (`401`).
+
+```shell
+npm run dev
+http POST http://localhost:8000/users/login email=test@mail.com password=testpass
+http POST http://localhost:8000/users/login email=peter@gmail.com password=testpass
+```
+
+Положительный ответ (пароль корректный)
+
+```
+> http POST http://localhost:8000/users/login email=test@mail.com password=testpass
+
+HTTP/1.1 200 OK
+Connection: keep-alive
+Content-Length: 2
+Content-Type: application/json; charset=utf-8
+Date: Sun, 11 May 2025 17:55:32 GMT
+ETag: W/"2-vyGp6PvFo4RvsFtPoIWeCReyIC8"
+Keep-Alive: timeout=5
+X-Powered-By: Express
+
+{}
+```
+
+Отрицательный ответ (пароль не совпадает)
+
+```
+> http POST http://localhost:8000/users/login email=peter@mail.com password=testpass
+
+HTTP/1.1 401 Unauthorized
+Connection: keep-alive
+Content-Length: 45
+Content-Type: application/json; charset=utf-8
+Date: Sun, 11 May 2025 17:56:43 GMT
+ETag: W/"2d-ZsKL4B5+lRZUzS8eVsZuDMLJFgI"
+Keep-Alive: timeout=5
+X-Powered-By: Express
+
+{
+    "err": "ошибка авторизации"
 }
 ```

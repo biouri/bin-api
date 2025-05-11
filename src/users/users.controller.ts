@@ -43,14 +43,23 @@ export class UserController extends BaseController implements IUserController {
         func: this.register,
         middlewares: [new ValidateMiddleware(UserRegisterDto)]
       },
-      { path: '/login', method: 'post', func: this.login }
+      {
+        path: '/login',
+        method: 'post',
+        func: this.login,
+        middlewares: [new ValidateMiddleware(UserLoginDto)]
+      }
     ]);
   }
 
   // Третий параметр в Request<{}, {}, UserLoginDto> является ReqBody
   // ReqBody - это данные которые будут приходить методом POST UserLoginDto
   // в качестве body будем использовать DTO объект
-  login(req: Request<{}, {}, UserLoginDto>, res: Response, next: NextFunction): void {
+  async login(
+    req: Request<{}, {}, UserLoginDto>,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
     // Для JSON используется body-parser, он парсит UserLoginDto в req.body
     console.log(req.body); // body будет UserLoginDto
     // req.body является UserLoginDto и его можно использоват далее как объект
@@ -67,7 +76,16 @@ export class UserController extends BaseController implements IUserController {
     // В любом месте контроллера можно вызвать next
     // Передаем ошибку с определенным кодом в Exception Filter
     // Кастомная ошибка HTTPError содержит код, сообщение и контекст
-    next(new HTTPError(401, 'ошибка авторизации', 'login'));
+    // next(new HTTPError(401, 'ошибка авторизации', 'login'));
+
+    // Валидация пользователя по паролю
+    const result = await this.userService.validateUser(req.body);
+    // Если валидация по паролю не пройдена
+    if (!result) {
+      return next(new HTTPError(401, 'ошибка авторизации', 'login'));
+    }
+    // Если валидация по паролю успешна, возвращаем пустой body
+    this.ok(res, {});
   }
 
   /*

@@ -46,7 +46,18 @@ export class UserService implements IUserService {
     return this.usersRepository.create(newUser);
   }
 
-  async validateUser(dto: UserLoginDto): Promise<boolean> {
-    return true;
+  async validateUser({ email, password }: UserLoginDto): Promise<boolean> {
+    // Поиск пользователя в БД
+    const existedUser = await this.usersRepository.find(email);
+    if (!existedUser) {
+      return false; // Нет такого пользователя
+    }
+    // Конструируем пользователя
+    // Модель из БД необходимо преобразовать в Entity-сущности
+    // Чтобы не использовать конструкторы с большим количеством параметров
+    // рекомендуется использовать Mapper для преобразования моделей в сущности
+    const newUser = new User(existedUser.email, existedUser.name, existedUser.password);
+    // Проверяем совпадение пароля - это результат валидации пароля
+    return newUser.comparePassword(password);
   }
 }
