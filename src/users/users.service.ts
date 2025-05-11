@@ -6,14 +6,20 @@ import { User } from './user.entity';
 import { IUserService } from './users.service.interface';
 import { TYPES } from '../types';
 import { IConfigService } from '../config/config.service.interface';
+import { IUsersRepository } from './users.repository.interface';
+import { UserModel } from '@prisma/client';
 
 // Сервис может работать только с репозиторием
 @injectable()
 export class UserService implements IUserService {
   // Подключение конфигурационного .env
-  constructor(@inject(TYPES.ConfigService) private configService: IConfigService) {}
+  // Подключение репозитория
+  constructor(
+    @inject(TYPES.ConfigService) private configService: IConfigService,
+    @inject(TYPES.UsersRepository) private usersRepository: IUsersRepository
+  ) {}
 
-  async createUser({ email, name, password }: UserRegisterDto): Promise<User | null> {
+  async createUser({ email, name, password }: UserRegisterDto): Promise<UserModel | null> {
     // Бизнес-логика создания пользователя
 
     // Создание пользователя User Entity выполняется в две строки
@@ -28,10 +34,16 @@ export class UserService implements IUserService {
     // Используем соль из конфигурации .env
     const salt = this.configService.get('SALT');
     await newUser.setPassword(password, Number(salt));
+
     // проверка что он есть?
     // если есть - возвращаем null
     // если нет - создаём
-    return null;
+    const existedUser = await this.usersRepository.find(email);
+    if (existedUser) {
+      return null; // пользователь уже есть в БД
+    }
+    // Создание пользователя в БД с хешированным паролем
+    return this.usersRepository.create(newUser);
   }
 
   async validateUser(dto: UserLoginDto): Promise<boolean> {

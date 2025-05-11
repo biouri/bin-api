@@ -11,6 +11,7 @@ import { inject, injectable } from 'inversify';
 import { TYPES } from './types';
 import { json } from 'body-parser'; // Middleware для разбора JSON
 import { IConfigService } from './config/config.service.interface';
+import { PrismaService } from './database/prisma.service';
 
 @injectable()
 export class App {
@@ -29,7 +30,8 @@ export class App {
     @inject(TYPES.ILogger) private logger: ILogger,
     @inject(TYPES.UserController) private userController: UserController,
     @inject(TYPES.ExceptionFilter) private exceptionFilter: IExceptionFilter,
-    @inject(TYPES.ConfigService) private configService: IConfigService
+    @inject(TYPES.ConfigService) private configService: IConfigService,
+    @inject(TYPES.PrismaService) private prismaService: PrismaService
   ) {
     this.app = express(); // Создание экземпляра Express
     this.port = 8000; // Порт по умолчанию 8000
@@ -80,6 +82,8 @@ export class App {
     this.useMiddleware(); // Глобальный парсер BODY в JSON для всех запросов
     this.useRoutes();
     this.useExceptionFilters();
+    // Подключение БД
+    await this.prismaService.connect();
     // Создание сервера
     this.server = this.app.listen(this.port);
     // В данном месте будет добавлено логгирование

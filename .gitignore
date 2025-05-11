@@ -3,3 +3,5 @@
 /.clinic
 /.env
 /*.mp4
+/prisma/dev.db
+/prisma/dev.db-journal

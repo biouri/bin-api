@@ -39,6 +39,8 @@
 6.5. Middleware для роутов
 6.6. Валидация данных
 7.1. Сервис конфигурации
+7.2. Работа с Prisma
+7.3. Репозиторий Users
 
 ## Git
 
@@ -87,6 +89,7 @@ git commit -m "Add User Entity + mutable/immutable + consistent/non-consistent"
 git commit -m "Add UserService"
 git commit -m "Add Middleware Routes + DTO Validator"
 git commit -m "Add Config Singleton Service + dotenv + Example .env"
+git commit -m "Add ORM Prisma + UsersRepository"
 ```
 
 ## 1.1. Простой http сервер
@@ -6254,4 +6257,544 @@ export class UserService implements IUserService {
 
 ```Text
 SALT=10
+```
+
+## 7.2. Работа с Prisma
+
+https://www.prisma.io/
+
+1. Введение в ORM и выбор Prisma:
+   `ORM` (Object Relational Mapping) облегчает работу с базами данных за счет преобразования данных в объекты.
+   `Prisma` обеспечивает `Type Safety` (типобезопасность) для моделей.
+   Простота в выполнении запросов.
+   Активное развитие и поддержка от сообщества.
+
+2. Отличия ORM и альтернативы Prisma:
+   `TypeORM` и `Sequalize` являются альтернативами для работы с реляционными БД.
+   `TypeORM` - развивается слабо, уже много лет не выпускалась новая версия.
+   `Mongoose` используется для работы с MongoDB.
+   Основное преимущество `Prisma` - поддержка `Type Safety` и лёгкость в выполнении запросов отношений между таблицами.
+
+3. Установка `Prisma` и настройка проекта:
+   Установка `Prisma CLI` и `Prisma Client` через npm.
+
+Dev установка необходима для выполнения инициализации, генерации схем и др.
+
+```shell
+npm i -D prisma
+```
+
+Установка клиента Prisma в Runtime. С помощью клиента будем устанавливать соединение и описывать типы.
+
+```shell
+npm i @prisma/client
+```
+
+Инициализация `Prisma` с созданием файла конфигурации и указанием SQLite в качестве базы данных.
+
+npx - предназначен для выполнение указанного пакета. Команда `npx prisma init` создает пустую конфигурацию Prisma.
+
+```shell
+npx prisma init
+```
+
+Вывод в консоль:
+
+```Text
+>npx prisma init
+
+✔ Your Prisma schema was created at prisma/schema.prisma
+  You can now open it in your favorite editor.
+
+warn You already have a .gitignore file. Don't forget to add `.env` in it to not commit any private information.
+
+Next steps:
+1. Set the DATABASE_URL in the .env file to point to your existing database. If your database has
+no tables yet, read https://pris.ly/d/getting-started
+2. Set the provider of the datasource block in schema.prisma to match your database: postgresql, mysql, sqlite, sqlserver, mongodb or cockroachdb.
+3. Run prisma db pull to turn your database schema into a Prisma schema.
+4. Run prisma generate to generate the Prisma Client. You can then start querying your database.
+5. Tip: Explore how you can extend the ORM with scalable connection pooling, global caching, and real-time database events. Read: https://pris.ly/cli/beyond-orm
+
+More information in our documentation:
+https://pris.ly/d/getting-started
+```
+
+Будет сгенерирована папка `prisma` с файлом схемы `prisma\schema.prisma`.
+Это описание схемы БД в синтаксисе Prisma:
+
+```JS
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+```
+
+Желательно установить Prisma плагин для VSCode для подсветки синтаксиса.
+
+```Text
+Identifier
+prisma.prisma
+Version
+6.7.1
+Published
+2019-06-12, 13:14:01
+Last Released
+2025-05-09, 13:41:53
+```
+
+4. Создание модели пользователя в `Prisma`:
+   Описание модели с помощью `Prisma Schema` с указанием полей `id`, `email`, `password` и имени пользователя.
+   Произведение первичной миграции для создания таблицы пользователя.
+
+Изменения в файле конфигурации.
+
+```JS
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model UserModel {
+    id       Int    @id @default(autoincrement())
+    email    String
+    password String
+    name     String
+}
+```
+
+Генерация типов Prisma.
+
+```shell
+npx prisma generate
+```
+
+Данная команда выполняется часто, поэтому можно включить ее в конфигурацию. Нужно будет перегенерировать контракты TypeScript когда мы меняем модель и в других ситуациях.
+
+`package.json`
+
+```JSON
+  "scripts": {
+    ...
+    "generate": "prisma generate",
+    ...
+  },
+```
+
+Выполнение генерации
+
+```shell
+npm run generate
+```
+
+```Text
+> npm run generate
+
+Environment variables loaded from .env
+Prisma schema loaded from prisma\schema.prisma
+
+✔ Generated Prisma Client (v6.7.0) to .\src\generated\prisma in 57ms
+
+Start by importing your Prisma Client (See: https://pris.ly/d/importing-client)
+
+Tip: Want to react to database changes in your app as they happen? Discover how with Pulse: https://pris.ly/tip-1-pulse
+```
+
+5. Выполнение первичной миграции.
+
+При выполнении первичной миграции будет запрощено описание первичной миграции, можно для примера указать `init`
+
+```shell
+npx prisma migrate dev
+```
+
+```Text
+> npx prisma migrate dev
+
+Environment variables loaded from .env
+Prisma schema loaded from prisma\schema.prisma
+Datasource "db": SQLite database "dev.db" at "file:./dev.db"
+
+SQLite database dev.db created at file:./dev.db
+
+√ Enter a name for the new migration: ... init
+Applying migration `20250511120323_init`
+
+The following migration(s) have been created and applied from new schema changes:
+
+migrations/
+  └─ 20250511120323_init/
+    └─ migration.sql
+
+Your database is now in sync with your schema.
+
+✔ Generated Prisma Client (v6.7.0) to .\src\generated\prisma in 94ms
+```
+
+Изменение `.gitignore`:
+
+```Text
+/prisma/dev.db
+/prisma/dev.db-journal
+```
+
+6. Создание Prisma Service для работы с базой данных:
+   Создание сервиса для подключения к базе данных и взаимодействия с ней через `Prisma Client`.
+   Типизация объектов на основе модели пользователя для работы с данными.
+
+`database\prisma.service.ts`
+
+```TypeScript
+import { PrismaClient, UserModel } from '@prisma/client';
+import { inject, injectable } from 'inversify';
+import { ILogger } from '../logger/logger.interface';
+import { TYPES } from '../types';
+
+// UserModel - это модель, сгенерированная Prisma в generated/prisma
+// UserModel не имеет каких-либо методов, это чистая модель для данных
+
+@injectable()
+export class PrismaService {
+  client: PrismaClient;
+
+  constructor(@inject(TYPES.ILogger) private logger: ILogger) {
+    this.client = new PrismaClient();
+  }
+
+  // Подключение к БД
+  async connect(): Promise<void> {
+    try {
+      await this.client.$connect();
+      this.logger.log('[PrismaService] Успешно подключились к базе данных');
+    } catch (e) {
+      if (e instanceof Error) {
+        this.logger.error('[PrismaService] Ошибка подключения к базе данных: ' + e.message);
+      }
+    }
+  }
+
+  // Отключение от БД
+  async disconnect(): Promise<void> {
+    await this.client.$disconnect();
+  }
+}
+```
+
+`types.ts`
+
+```TypeScript
+export const TYPES = {
+  ...
+  PrismaService: Symbol.for('PrismaService')
+};
+```
+
+`main.ts`
+
+```TypeScript
+import { PrismaService } from './database/prisma.service';
+...
+export const appBindings = new ContainerModule(({ bind }) => {
+  ...
+  bind<PrismaService>(TYPES.PrismaService).to(PrismaService).inSingletonScope();
+  ...
+});
+```
+
+`app.ts`
+
+```TypeScript
+import { PrismaService } from './database/prisma.service';
+...
+@injectable()
+export class App {
+  ...
+  // Реализация конструктора для будущих зависимостей
+  constructor(
+    ...
+    @inject(TYPES.PrismaService) private prismaService: PrismaService
+  ) {
+    ...
+  }
+
+  // Инициализация приложения при запуске
+  public async init(): Promise<void> {
+    ...
+    // Подключение БД
+    await this.prismaService.connect();
+    ...
+  }
+}
+```
+
+7. Недостатки Prisma:
+   Недостатки: свой синтаксис схем и необходимость ручной генерации кода для типов.
+
+Проверка подключения к БД
+
+```
+> npm run dev
+
+> bin-api@1.0.0 dev
+> nodemon
+
+[nodemon] 3.1.10
+[nodemon] to restart at any time, enter `rs`
+[nodemon] watching path(s): src\**\*
+[nodemon] watching extensions: ts,json
+[nodemon] starting `ts-node ./src/main.ts`
+2025-05-11 14:16:10 INFO: [ConfigService] Конфигурация .env загружена
+2025-05-11 14:16:10 INFO: [post] /register
+2025-05-11 14:16:10 INFO: [post] /login
+2025-05-11 14:16:11 INFO: [PrismaService] Успешно подключились к базе данных
+2025-05-11 14:16:11 INFO: Сервер запущен на http://localhost:8000
+```
+
+## 7.3. Репозиторий users
+
+Репозиторий для взаимодействия с базой данных через отдельные сущности.
+
+Что такое Репозиторий?
+
+1. Репозиторий – это сервис с ограниченным API для взаимодействия с базой данных, предназначенный для определенной сущности (`entity`), например, пользователи или автомобили.
+2. Функции: Позволяет создавать, искать и взаимодействовать с данными сущности, изолируя сложности работы с базой данных.
+
+### Структура Репозитория
+
+`Организация По Сущностям`: Для каждой сущности (например, пользователи) создается своя директория с репозиторием и другими необходимыми классами (контроллеры, сервисы, энтити).
+
+### Реализация Репозитория
+
+1. Создается интерфейс (например, `users.repository.interface.ts`) для определения доступных методов.
+2. Реализуется класс репозитория (например, `users.repository.ts`) на основе интерфейсного контракта.
+
+### Основные Методы Репозитория
+
+1. `Create`: Создает новую запись в базе данных.
+2. `Find`: Поиск записи по заданному критерию (например, по e-mail).
+
+### Интеграция с Prisma
+
+1. `Prisma Service`: Используется для работы с базой данных, репозиторий через DI (Dependency Injection) получает доступ к Prisma Service.
+
+2. `Методы Prisma`: Репозиторий использует функции Prisma для создания или поиска записей в соответствии с его методами (Create, Find), обеспечивая абстракцию над деталями реализации запросов к базе данных.
+
+Пример кода: `users\users.repository.interface.ts`:
+
+```TypeScript
+import { UserModel } from '@prisma/client';
+import { User } from './user.entity';
+
+export interface IUsersRepository {
+  // Создание пользователя
+  // Входной параметр - User Entity, Результат - модель Prisma из БД
+  create: (user: User) => Promise<UserModel>;
+
+  // Поиск пользователя по email (уникальное значение)
+  // Результат - модель Prisma из БД или null если ничего не найдено
+  // Лучше использовать null, а не генерировать ошибки
+  // Проверку на null проще выполнить, получаем простой линейный код
+  find: (email: string) => Promise<UserModel | null>;
+}
+```
+
+Пример кода `users\users.repository.ts`:
+
+```TypeScript
+import { UserModel } from '.prisma/client';
+import { inject, injectable } from 'inversify';
+import { PrismaService } from '../database/prisma.service';
+import { TYPES } from '../types';
+import { User } from './user.entity';
+import { IUsersRepository } from './users.repository.interface';
+
+// С точки зрения разделения ответственности UsersRepository должен работать
+// только с моделью UserModel.
+
+@injectable()
+export class UsersRepository implements IUsersRepository {
+  constructor(@inject(TYPES.PrismaService) private prismaService: PrismaService) {}
+
+  // Пример создания метода create в репозитории users.repository.ts
+  // Входные параметры можно деструктурировать для удобства
+  async create({ email, password, name }: User): Promise<UserModel> {
+    // prismaService.client. содержит методы для сгенерированных моделей
+    // userModel - доступна после генерации из Prisma нотации prisma\schema.prisma
+    // userModel содержит набор методов для создания/удаления/поиска... user
+    return this.prismaService.client.userModel.create({
+      data: {
+        email,
+        password,
+        name
+      }
+    });
+  }
+
+  // Пример реализации метода find с проверкой на уникальность e-mail
+  async find(email: string): Promise<UserModel | null> {
+    // prismaService.client. содержит методы для сгенерированных моделей
+    // userModel - доступна после генерации из Prisma нотации prisma\schema.prisma
+    // userModel содержит набор методов для создания/удаления/поиска... user
+    return this.prismaService.client.userModel.findFirst({
+      where: {
+        email
+      }
+    });
+  }
+}
+```
+
+`types.ts`
+
+```TypeScript
+export const TYPES = {
+  ...
+  PrismaService: Symbol.for('PrismaService'),
+  UsersRepository: Symbol.for('UsersRepository')
+};
+```
+
+`main.ts`
+
+```TypeScript
+import { PrismaService } from './database/prisma.service';
+import { IUsersRepository } from './users/users.repository.interface';
+import { UsersRepository } from './users/users.repository';
+...
+export const appBindings = new ContainerModule(({ bind }) => {
+  ...
+  bind<PrismaService>(TYPES.PrismaService).to(PrismaService).inSingletonScope();
+  bind<IUsersRepository>(TYPES.UsersRepository).to(UsersRepository).inSingletonScope();
+  ...
+});
+```
+
+Пример изменений `users\users.service.interface.ts`,
+createUser возвращает модель `UserModel`:
+
+```TypeScript
+import { UserModel } from '@prisma/client';
+import { UserLoginDto } from './dto/user-login.dto';
+import { UserRegisterDto } from './dto/user-register.dto';
+import { User } from './user.entity';
+
+// В Сервис приходят DTO, например UserRegisterDto или UserLoginDto
+// Методы сервиса обычно возвращают Entity, null или boolean
+export interface IUserService {
+  // При успешном создании возвращается User Model
+  // null возвращается если такой пользователь уже есть
+  createUser: (dto: UserRegisterDto) => Promise<UserModel | null>;
+  validateUser: (dto: UserLoginDto) => Promise<boolean>;
+}
+```
+
+`users\users.service.ts`
+
+```TypeScript
+import 'reflect-metadata';
+import { inject, injectable } from 'inversify';
+import { UserLoginDto } from './dto/user-login.dto';
+import { UserRegisterDto } from './dto/user-register.dto';
+import { User } from './user.entity';
+import { IUserService } from './users.service.interface';
+import { TYPES } from '../types';
+import { IConfigService } from '../config/config.service.interface';
+import { IUsersRepository } from './users.repository.interface';
+import { UserModel } from '@prisma/client';
+
+// Сервис может работать только с репозиторием
+@injectable()
+export class UserService implements IUserService {
+  // Подключение конфигурационного .env
+  // Подключение репозитория
+  constructor(
+    @inject(TYPES.ConfigService) private configService: IConfigService,
+    @inject(TYPES.UsersRepository) private usersRepository: IUsersRepository
+  ) {}
+
+  async createUser({ email, name, password }: UserRegisterDto): Promise<UserModel | null> {
+    // Бизнес-логика создания пользователя
+
+    // Создание пользователя User Entity выполняется в две строки
+    // 1. Применяется конструктор без пароля
+    // 2. Устанавливается Хеш пароля при помощи асинхронного метода setPassword
+    // Такой код лучше изменить и использовать фабричные методы создания User
+    // Также создание объекта User необходимо выполнять в сервисе
+    // Почему не стоит использовать setter для пароля:
+    // Возможен баг: объект создан без пароля, можно забыть вызвать setPassword!
+    // Нарушена консистентность: у объекта может быть "дырявое" состояние.
+    const newUser = new User(email, name);
+    // Используем соль из конфигурации .env
+    const salt = this.configService.get('SALT');
+    await newUser.setPassword(password, Number(salt));
+
+    // проверка что он есть?
+    // если есть - возвращаем null
+    // если нет - создаём
+    const existedUser = await this.usersRepository.find(email);
+    if (existedUser) {
+      return null; // пользователь уже есть в БД
+    }
+    // Создание пользователя в БД с хешированным паролем
+    return this.usersRepository.create(newUser);
+  }
+
+  async validateUser(dto: UserLoginDto): Promise<boolean> {
+    return true;
+  }
+}
+```
+
+Тестирование `UsersRepository`
+
+```
+> npm run dev
+
+> bin-api@1.0.0 dev
+> nodemon
+
+[nodemon] 3.1.10
+[nodemon] to restart at any time, enter `rs`
+[nodemon] watching path(s): src\**\*
+[nodemon] watching extensions: ts,json
+[nodemon] starting `ts-node ./src/main.ts`
+2025-05-11 16:06:36 INFO: [ConfigService] Конфигурация .env загружена
+2025-05-11 16:06:36 INFO: [post] /register
+2025-05-11 16:06:36 INFO: [post] /login
+2025-05-11 16:06:36 INFO: [PrismaService] Успешно подключились к базе данных
+2025-05-11 16:06:36 INFO: Сервер запущен на http://localhost:8000
+
+-----------------------------------------------------------------
+
+> http POST http://localhost:8000/users/register email=test@mail.com password=testpass name=Yury
+
+HTTP/1.1 200 OK
+Connection: keep-alive
+Content-Length: 32
+Content-Type: application/json; charset=utf-8
+Date: Sun, 11 May 2025 16:07:18 GMT
+ETag: W/"20-AxzlE0B8bFv4mpO2/teO4otUN/Q"
+Keep-Alive: timeout=5
+X-Powered-By: Express
+
+{
+    "email": "test@mail.com",
+    "id": 1
+}
 ```

@@ -117,7 +117,8 @@ export class UserController extends BaseController implements IUserController {
       return next(new HTTPError(422, 'Такой пользователь уже существует'));
     }
     // Можем выполнить дополнительные преобразование результата для отправки
-    // В данном случае отправлять будем только email
-    this.ok(res, { email: result.email });
+    // В данном случае отправлять будем email + id
+    // id чтобы проверить результат сохранения в БД
+    this.ok(res, { email: result.email, id: result.id });
   }
 }
