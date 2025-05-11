@@ -30,9 +30,9 @@ export class User {
   }
 
   // Нельзя создать setter т.к. setter не может быть асинхронным
-  public async setPassword(pass: string): Promise<void> {
+  public async setPassword(pass: string, salt: number): Promise<void> {
     // В дальнейшем вторым параметром будет соль, которая хранится в конфигурации
     // Сохраняем захешированный пароль
-    this._password = await hash(pass, 10);
+    this._password = await hash(pass, salt);
   }
 }

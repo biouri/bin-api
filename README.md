@@ -38,6 +38,7 @@
 6.4. Сервис Users
 6.5. Middleware для роутов
 6.6. Валидация данных
+7.1. Сервис конфигурации
 
 ## Git
 
@@ -85,6 +86,7 @@ git commit -m "Add Data Transfer Object DTO + body-parser Middleware"
 git commit -m "Add User Entity + mutable/immutable + consistent/non-consistent"
 git commit -m "Add UserService"
 git commit -m "Add Middleware Routes + DTO Validator"
+git commit -m "Add Config Singleton Service + dotenv + Example .env"
 ```
 
 ## 1.1. Простой http сервер
@@ -6112,4 +6114,144 @@ X-Powered-By: Express
         "value": "testmail.com"
     }
 ]
+```
+
+## 7.1. Сервис конфигурации
+
+- Использование файлов `.env` для управления переменными окружения.
+- Создание конфиг-сервиса для работы с этими переменными.
+- Использование библиотеки `dotenv`.
+- Реализация паттерна `singleton` в сервисах приложения.
+
+### Шаги
+
+1. Подключение библиотеки `dotenv`
+
+https://www.npmjs.com/package/dotenv
+
+```shell
+npm i dotenv
+```
+
+2. Создание конфиг-сервиса
+
+   - Создание папки `config` и файлов для сервиса и его интерфейса.
+   - Определение интерфейса `IConfigService` с методом `get`, которые позволяет получить значение по ключу.
+   - Реализация чтения `.env` файла и парсинга его содержимого.
+   - Добавление метода `get` для получения значений переменных окружения.
+
+`config\config.service.interface.ts`
+
+```TypeScript
+export interface IConfigService {
+  get: (key: string) => string;
+}
+```
+
+`config\config.service.ts`
+
+```TypeScript
+import { IConfigService } from './config.service.interface';
+import { config, DotenvConfigOutput, DotenvParseOutput } from 'dotenv';
+import { inject, injectable } from 'inversify';
+import { ILogger } from '../logger/logger.interface';
+import { TYPES } from '../types';
+
+@injectable()
+export class ConfigService implements IConfigService {
+  private config: DotenvParseOutput;
+  constructor(@inject(TYPES.ILogger) private logger: ILogger) {
+    // Результат парсинга файла .env будет в result
+    const result: DotenvConfigOutput = config(); // Получение конфигурации
+    if (result.error) {
+      this.logger.error('[ConfigService] Не удалось прочитать файл .env или он отсутствует');
+    } else {
+      this.logger.log('[ConfigService] Конфигурация .env загружена');
+      this.config = result.parsed as DotenvParseOutput;
+    }
+  }
+
+  get(key: string): string {
+    return this.config[key];
+  }
+}
+```
+
+3. Singleton и Inversify
+   - Описание работы синглтонов и их реализации в `Inversify`.
+   - Настройка биндингов с использованием `singletonScope` для избежания создания множественных экземпляров сервиса.
+   - Пример использования конфиг-сервиса для чтения значения переменной окружения.
+
+`src\types.ts`
+
+```TypeScript
+export const TYPES = {
+  ...
+  ConfigService: Symbol.for('ConfigService')
+};
+```
+
+`main.ts`
+
+```TypeScript
+import { IConfigService } from './config/config.service.interface';
+import { ConfigService } from './config/config.service';
+...
+
+export const appBindings = new ContainerModule(({ bind }) => {
+  ...
+  // Singleton - будет создан единственный экземпляр и будет передаваться в @inject-ах
+  bind<IConfigService>(TYPES.ConfigService).to(ConfigService).inSingletonScope();
+});
+```
+
+Использование ConfigService в `app.ts`
+
+```TypeScript
+import { IConfigService } from './config/config.service.interface';
+
+@injectable()
+export class App {
+  app: Express; // Интерфейс приложения Express
+  server: Server; // Используется стандартный 'node:http'
+  port: number; // Порт может быть конфигурируемым
+
+  // Реализация конструктора для будущих зависимостей
+  constructor(
+    ...
+    @inject(TYPES.ConfigService) private configService: IConfigService
+  ) {
+    ...
+  }
+}
+```
+
+Использование ConfigService в `users\users.service.ts`
+
+```TypeScript
+import { TYPES } from '../types';
+import { IConfigService } from '../config/config.service.interface';
+...
+@injectable()
+export class UserService implements IUserService {
+  // Подключение конфигурационного .env
+  constructor(@inject(TYPES.ConfigService) private configService: IConfigService) {}
+
+  async createUser({ email, name, password }: UserRegisterDto): Promise<User | null> {
+    ...
+    const newUser = new User(email, name);
+    // Используем соль из конфигурации .env
+    const salt = this.configService.get('SALT');
+    await newUser.setPassword(password, Number(salt));
+    ...
+  }
+}
+```
+
+### Пример файла .env
+
+Обычно .env исключают из git-репозитория т.к. в нем находится инфрация о паролях, ключах и др.
+
+```Text
+SALT=10
 ```

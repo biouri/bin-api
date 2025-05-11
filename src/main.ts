@@ -10,6 +10,8 @@ import { ExceptionFilter } from './errors/exception.filter';
 import { IUserService } from './users/users.service.interface';
 import { UserService } from './users/users.service';
 import { TYPES } from './types';
+import { IConfigService } from './config/config.service.interface';
+import { ConfigService } from './config/config.service';
 
 export interface IBootstrapReturn {
   appContainer: Container;
@@ -80,12 +82,15 @@ export const appBindings = new ContainerModule(({ bind }) => {
   // Интерфейс IService... биндится на конкретную реализацию Service...
   // Интерфейс ILogger биндится на конкретную реализацию LoggerService
   // Теперь по токену TYPES.ILogger можно применить @inject для внедрения LoggerService
-  bind<ILogger>(TYPES.ILogger).to(LoggerService);
+  // Singleton - будет создан единственный экземпляр и будет передаваться в @inject-ах
+  bind<ILogger>(TYPES.ILogger).to(LoggerService).inSingletonScope();
   bind<IExceptionFilter>(TYPES.ExceptionFilter).to(ExceptionFilter);
   // Не обязательно создавать интерфейсы для каждой реализацияи
   // Есть одна конкретная реализация UserController без использования интерфейса
   bind<IUserController>(TYPES.UserController).to(UserController);
   bind<IUserService>(TYPES.UserService).to(UserService);
+  // Singleton - будет создан единственный экземпляр и будет передаваться в @inject-ах
+  bind<IConfigService>(TYPES.ConfigService).to(ConfigService).inSingletonScope();
   bind<App>(TYPES.Application).to(App);
 });
 

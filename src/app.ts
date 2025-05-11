@@ -1,13 +1,16 @@
 import 'reflect-metadata';
 import express, { Express } from 'express';
 import { Server } from 'http';
-import { LoggerService } from './logger/logger.service';
-import { UserController } from './users/users.controller';
-import { ExceptionFilter } from './errors/exception.filter';
 import { ILogger } from './logger/logger.interface';
+import { LoggerService } from './logger/logger.service';
+import { IUserController } from './users/users.controller.interface';
+import { UserController } from './users/users.controller';
+import { IExceptionFilter } from './errors/exception.filter.interface';
+import { ExceptionFilter } from './errors/exception.filter';
 import { inject, injectable } from 'inversify';
 import { TYPES } from './types';
 import { json } from 'body-parser'; // Middleware для разбора JSON
+import { IConfigService } from './config/config.service.interface';
 
 @injectable()
 export class App {
@@ -25,7 +28,8 @@ export class App {
     // logger: ILogger, // Используем интрефейс вместо конкретной реализации
     @inject(TYPES.ILogger) private logger: ILogger,
     @inject(TYPES.UserController) private userController: UserController,
-    @inject(TYPES.ExceptionFilter) private exceptionFilter: ExceptionFilter
+    @inject(TYPES.ExceptionFilter) private exceptionFilter: IExceptionFilter,
+    @inject(TYPES.ConfigService) private configService: IConfigService
   ) {
     this.app = express(); // Создание экземпляра Express
     this.port = 8000; // Порт по умолчанию 8000
