@@ -42,6 +42,7 @@
 7.2. Работа с Prisma
 7.3. Репозиторий Users
 7.4. Простая проверка авторизации - Логин пользователя
+8.1. Работа JWT
 
 ## Git
 
@@ -92,11 +93,53 @@ git commit -m "Add Middleware Routes + DTO Validator"
 git commit -m "Add Config Singleton Service + dotenv + Example .env"
 git commit -m "Add ORM Prisma + UsersRepository"
 git commit -m "Add Simple User Login Password Validation"
+git commit -m "Add JWT + signJWT Method in UserController"
 ```
 
 ## Дополнительные темы
 
 `Mapper` для преобразования моделей в сущности.
+
+### NPM зависимости
+
+```shell
+npm init
+npm install -g typescript
+npm i express
+npm i @types/express -D
+npm i tslog
+# DI
+npm i inversify reflect-metadata
+# eslint + prettier
+npm i -D eslint
+npm i -D @typescript-eslint/parser
+npm i -D @typescript-eslint/eslint-plugin
+npm i -D prettier
+npm i -D eslint-config-prettier
+npm i -D eslint-plugin-prettier
+npm i -D typescript
+# Отладка
+npm install -g clinic doctor autocannon
+# Автоматическая пересборка/перезапуск
+npm i -D nodemon
+npm i -D ts-node
+# middleware для разбора JSON
+npm i body-parser
+# Хеширование
+npm i bcryptjs
+npm i -D @types/bcryptjs
+# Декораторы для описания правил валидации
+npm i class-validator
+npm i class-transformer
+# Использование файлов `.env` для управления переменными окружения
+npm i dotenv
+# ORM
+npm i -D prisma
+npm i @prisma/client
+# JWT
+npm i jsonwebtoken
+npm i -D @types/jsonwebtoken.
+```
 
 ## 1.1. Простой http сервер
 
@@ -6984,5 +7027,254 @@ X-Powered-By: Express
 
 {
     "err": "ошибка авторизации"
+}
+```
+
+## 8.1. Работа JWT
+
+JWT (JSON Web Token) - это строка, которая позволяет безопасно передавать между сторонами информацию. Он используется для авторизации и информационного обмена.
+
+Предшественники JWT: Раньше для авторизации использовались Cookie, однако возникли проблемы с их применимостью при взаимодействии разных доменов и в микросервисных архитектурах. JWT стал решением этих проблем, предоставляя способ подтвердить авторизацию без привязки к домену.
+
+JWT - это строка, описание структуры и проверка:
+https://jwt.io/
+
+### Как работает JWT?
+
+1. Авторизация пользователя:
+   Пользователь отправляет свои данные сервису логина, который в ответ выдает JWT.
+
+2. Использование токена:
+   Для доступа к приватным роутам пользователь отправляет запросы с JWT в заголовке Authorization. В этом заголовке указан token, который подтверждает его авторизацию.
+
+3. Проверка токена на сервере:
+   Сервер принимает JWT, расшифровывает его и проверяет подпись (токен подписан неким секретом), чтобы убедиться в его подлинности и валидности.
+
+### Структура JWT
+
+JWT состоит из трех частей, разделенных точками:
+
+1. Заголовок (Header):
+   Содержит информацию о типе токена (JWT) и используемом алгоритме шифрования (например, HS256).
+
+2. Полезная нагрузка (Payload):
+   Содержит выдаваемые данные, такие как email или ID пользователя.
+
+3. Подпись (Signature):
+   Используется для верификации, что отправитель JWT является тем, за кого себя выдает.
+
+Пример JSON Web Token (JWT) Encoded value:
+
+```jwt
+eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiYWRtaW4iOnRydWUsImlhdCI6MTUxNjIzOTAyMn0.KMUFsIDTnFmyG3nMiGM6H9FNFUROf3wh7SmqJp-QV30
+```
+
+Decoded Header
+
+```json
+{
+  "alg": "HS256",
+  "typ": "JWT"
+}
+```
+
+Decoded Payload
+
+```json
+{
+  "sub": "1234567890",
+  "name": "John Doe",
+  "admin": true,
+  "iat": 1516239022
+}
+```
+
+Secret / Encoding Format UTF-8
+
+```
+a-string-secret-at-least-256-bits-long
+```
+
+### Процесс верификации
+
+1. Для создания подписи используется секретный ключ с выбранным алгоритмом (например, HMAC-SHA256).
+
+2. Сервер, получающий JWT, использует тот же секретный ключ для проверки подписи. Это гарантирует, что JWT не был подделан.
+
+### Применение JWT
+
+1. JWT широко используется для авторизации в микросервисных системах и других случаях, когда необходим безопасный обмен информацией между различными системами.
+
+2. JWT стал стандартом для авторизации и безопасного обмена информацией между сервисами.
+
+### Практика
+
+Применение JWT заключается в создании и верификации токенов с использованием специализированных библиотек. Освоение этого процесса критически важно для разработчиков, работающих с авторизацией и безопасностью веб-приложений.
+
+## 8.2. Создание токена
+
+Авторизация пользователя с помощью JWT (JSON Web Tokens).
+Процесс создания токена при успешном логине и его дальнейшее использование.
+
+### Используемые инструменты
+
+1. Библиотека JSONWebToken:
+   Выбрана для создания и управления JWT из-за своей популярности и легкости интеграции.
+
+2. Официальный сайт JWT.io:
+   Содержит много библиотек для работы с JWT на различных языках программирования.
+
+Популярные библиотеки
+npm install jsonwebtoken
+npm install jose
+npm install jsrsasign
+
+### Подготовка
+
+Будем использовать `JSONWebToken`
+Установка JSONWebToken:
+
+```shell
+npm i jsonwebtoken
+```
+
+Установка типов для TypeScript: Если используете TypeScript, необходимо также добавить типы:
+Типы можно устанавливать как Dev-зависимости:
+
+```shell
+npm i -D @types/jsonwebtoken
+```
+
+### Создание Токена
+
+1. Функция `sign` из JSONWebToken: Используется для подписывания токенов. Может использоваться как в синхронном, так и в асинхронном варианте. В нашем случае, предпочтение отдаётся асинхронному варианту.
+
+2. Данные для токена: Обычно включают email пользователя и время выпуска токена.
+
+`users\users.controller.ts`
+
+```TypeScript
+import { sign } from 'jsonwebtoken';
+
+@injectable()
+export class UserController extends BaseController implements IUserController {
+  // Декоратор @inject принимает ключ TYPES.ILogger для внедрения зависимости
+  // Управлять зависимостями будет inversify
+  constructor(
+    @inject(TYPES.ILogger) private loggerService: ILogger,
+    @inject(TYPES.UserService) private userService: IUserService,
+    @inject(TYPES.ConfigService) private configService: IConfigService
+  ) {
+    super(loggerService);
+    // ...
+  }
+
+  async login(
+    req: Request<{}, {}, UserLoginDto>,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    // Валидация пользователя по паролю
+    const result = await this.userService.validateUser(req.body);
+    // Если валидация по паролю не пройдена
+    if (!result) {
+      return next(new HTTPError(401, 'ошибка авторизации', 'login'));
+    }
+
+    // Если валидация по паролю успешна, возвращаем JWT
+    // JWT подписывается секретным ключом, который читаем из .env
+    const jwt = await this.signJWT(req.body.email, this.configService.get('SECRET'));
+    this.ok(res, { jwt });
+  }
+
+  // SECRET будем хранить в .env файле
+  private signJWT(email: string, secret: string): Promise<string> {
+    // Оборачиваем callback-функцию sign в Promise
+    return new Promise<string>((resolve, reject) => {
+      // Параметры функции sign
+      // 1. Payload: email + Issued at (когда выпущен)
+      //    Рекомендуется всегда добавлять время выпуска,
+      //    иначе всегда будет одинаковый токен независимо от времени выпуска.
+      //    Нормальная практика использовать два токена JWT и Refresh.
+      //    JWT токен имеет ограниченное время жизни, затем его обновляют
+      //    Для обновления JWT отправляется Refresh токен и
+      //    в ответ получаем Новый JWT + Новый Refresh
+      //    Такая цепочка гарантирует стойкость при компроментации JWT.
+      //    При утере токена злоумышленник сможет воспользоваться им только
+      //    определенный период времени, до момента обновления.
+      // 2. Secret
+      // 3. Дополнительные опции: алгоритм и др.
+      // 4. Функция-callback выполнится при ошибке или успешном формировании JWT
+      //    (err, token) => { ... }
+      sign(
+        {
+          email,
+          iat: Math.floor(Date.now() / 1000)
+        },
+        secret,
+        {
+          algorithm: 'HS256'
+        },
+        (err, token) => {
+          if (err) {
+            reject(err); // ошибка
+          }
+          // token может быть undefined если возникла ошибка.
+          // Если ошибки нет, токен всегда будет string
+          // Т.к. token может быть string | undefined, используем явное приведение типа
+          // Приведение типа необходимо т.к. функция signJWT возвращает Promise<string>
+          resolve(token as string);
+        }
+      );
+    });
+  }
+}
+```
+
+3. Секрет для подписи: Необходимо хранить в безопасности и использовать для шифрования токена. Следует добавить его в `.env` файл проекта.
+
+```Text
+SALT=10
+SECRET='SUPERSECRET'
+```
+
+### Примечания по реализации
+
+1. Refresh Tokens: Работа с ограниченным по времени JWT и механизмом обновления сессии с использованием Refresh Tokens не используется в данной реализации.
+
+2. Обработка ошибок и безопасность: Важно правильно обрабатывать возможные ошибки и обеспечить безопасность данных пользователей.
+
+### Пример реализации
+
+1. Создание приватного метода для асинхронной подписи JWT.
+2. Использование полученного email пользователя для создания Payload токена.
+3. Добавление времени создания токена для обеспечения уникальности.
+4. Установка алгоритма шифрования (HS256) для подписи.
+
+### Проверка
+
+Использование сайта JWT.io для проверки корректности созданного токена и его подписи.
+
+```shell
+npm run dev
+http POST http://localhost:8000/users/login email=test@mail.com password=testpass
+http POST http://localhost:8000/users/login email=peter@gmail.com password=testpass
+```
+
+При положительном ответе (пароль корректный) получаем JWT
+
+```
+>http POST http://localhost:8000/users/login email=test@mail.com password=testpass
+HTTP/1.1 200 OK
+Connection: keep-alive
+Content-Length: 147
+Content-Type: application/json; charset=utf-8
+Date: Tue, 13 May 2025 09:48:41 GMT
+ETag: W/"93-1/FZabu+DiHHXylXxCnUki1VBcU"
+Keep-Alive: timeout=5
+X-Powered-By: Express
+
+{
+    "jwt": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6InRlc3RAbWFpbC5jb20iLCJpYXQiOjE3NDcxMjk3MjF9.WmwAl0qtthW6gcsf4iYnQViHFsFgEvu6jOHmymIYJKE"
 }
 ```
