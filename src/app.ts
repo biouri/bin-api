@@ -12,6 +12,7 @@ import { TYPES } from './types';
 import { json } from 'body-parser'; // Middleware для разбора JSON
 import { IConfigService } from './config/config.service.interface';
 import { PrismaService } from './database/prisma.service';
+import { AuthMiddleware } from './common/auth.middleware';
 
 @injectable()
 export class App {
@@ -54,6 +55,12 @@ export class App {
   useMiddleware(): void {
     // Приложение (this.app) использует (this.app.use) Middleware
     this.app.use(json()); // Парсер BODY в JSON для всех запросов
+
+    // Внедрение auth.middleware на глобальном уровне в приложение
+    const authMiddleware = new AuthMiddleware(this.configService.get('SECRET'));
+    this.app.use(authMiddleware.execute.bind(authMiddleware));
+    // Теперь во всех запросах Request будет доступно поле user
+    // если запрос был выполнен с токеном, иначе поле user будет undefined
   }
 
   // Метод инициализации Маршрутов Routes

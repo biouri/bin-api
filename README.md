@@ -43,6 +43,8 @@
 7.3. Репозиторий Users
 7.4. Простая проверка авторизации - Логин пользователя
 8.1. Работа JWT
+8.2. Создание токена
+8.3. Middleware для проверки jwt
 
 ## Git
 
@@ -94,6 +96,7 @@ git commit -m "Add Config Singleton Service + dotenv + Example .env"
 git commit -m "Add ORM Prisma + UsersRepository"
 git commit -m "Add Simple User Login Password Validation"
 git commit -m "Add JWT + signJWT Method in UserController"
+git commit -m "Add JWT Verification Middleware"
 ```
 
 ## Дополнительные темы
@@ -7278,3 +7281,310 @@ X-Powered-By: Express
     "jwt": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6InRlc3RAbWFpbC5jb20iLCJpYXQiOjE3NDcxMjk3MjF9.WmwAl0qtthW6gcsf4iYnQViHFsFgEvu6jOHmymIYJKE"
 }
 ```
+
+## 8.3. Middleware для проверки jwt
+
+Создание, верификация JWT токенов и использование их для ограничения доступа к роутам в Express-приложении.
+Собственная системы авторизации без использования готовых библиотек (например, `Passport.js` для Express).
+
+Библиотека `JSONWebToken` может использоваться для `подписи токенов` и для `верификации токенов`.
+
+1. Создание Middleware для Авторизации:
+
+   - Создание файла `auth.middleware.ts`.
+   - Middleware должен реализовывать интерфейс `IMiddleware` с функцией `execute`.
+
+`common\auth.middleware.ts`
+
+```TypeScript
+import { IMiddleware } from './middleware.interface';
+import { NextFunction, Request, Response } from 'express';
+import { verify } from 'jsonwebtoken';
+
+export class AuthMiddleware implements IMiddleware {
+  // secret - строка, которой шифруется и дешифруется JWT
+  constructor(private secret: string) {}
+
+  // Авторизационный Middleware будет включен на глобальном уровне
+  // Работает для всех запросов
+  // Но если в заголовке нет данных авторизации, выполнение переходит далее next()
+  execute(req: Request, res: Response, next: NextFunction): void {
+    // Данные авторизации в находятся в заголовке который состоиз из 2-х частей
+    // Bearer JWT...
+    if (req.headers.authorization) {
+      // Убираем слово Bearer и оставляем только строку JWT
+      // Затем проверяем методом verify из библиотеки jsonwebtoken
+      // используем секретный ключ для дешифрования payload
+      // this.secret будет предварительно задан через конструктор
+      // Третий параметр (err, payload) ... - стрелочная функция при завершении
+      verify(req.headers.authorization.split(' ')[1], this.secret, (err, payload) => {
+        if (err) {
+          next(); // Ничего не делаем
+        } else if (payload && typeof payload === 'object' && 'email' in payload) {
+          // В типе Request из Express нет пользователя, его нужно добавить
+          // Необходимо использовать типы d.ts которые позволяют дополнить типы,
+          // либо определить свои типы, либо типизировать библиотеку если
+          // если библиотека не типизирована
+          // Дополняем namespace Express в файле types/custom.d.ts
+          req.user = payload.email; // Добавим в Request пользователя
+          next();
+        }
+      });
+    }
+    next();
+  }
+}
+```
+
+2. Верификация JWT Токена:
+
+   - Извлечение токена из заголовка `Authorization`.
+   - Разделение заголовка на `bearer` и сам токен.
+   - Использование метода `verify` библиотеки `JSONWebToken` для верификации токена.
+   - Обработка ошибок и успешной верификации.
+   - Обогащение объекта запроса ('request') данными пользователя из токена.
+
+При генерации токена можно все токены, сгенерированные именно нашим сервисом сохранять в БД.
+Теоретически при каждом запросе можно обращаться в БД для проверки токена, что именно мы его выдали. Но это дополнительная большая нагрузка и увеличение времени отклика, поэтому верифицируем только токен. Мы доверяем токену и делаем предположение, что только мы можем выпустить (сгенерировать) токен т.к. секретный ключ есть только у нас.
+
+3. Типизация Расширенных Данных Запроса:
+
+   - Добавление кастомного типа для объекта запроса (`Request`) через файл `custom.d.ts`.
+   - Декларирование пользователя в пространстве имён `Express`.
+
+Дополняем `namespace Express` в файле `types/custom.d.ts` в этом файле будем записывать дополнительные интерфейсы и типы для того, чтобы дотипизировать наш код. Поскольку у интерфейсов в TypeScript есть возможность мержиться (объединяться между собой), используем эту особенность для дополнения интерфейса Request библиотеки Express дополнительным полем `user: string`. В библиотеке этот интерфейс определен в пространстве имен `namespace Express`, поэтому дополнение интерфейса Request выполняем в том же пространстве имен. Декларируем такое же пространство имен и такой же интерфейс как в библиотеке Express:
+
+```TypeScript
+declare namespace Express {
+  export interface Request {
+    user: string;
+  }
+}
+```
+
+4. Применение Middleware:
+
+   - Внедрение `auth.middleware` на глобальном уровне в приложение.
+   - Передача секрета для верификации токена из конфигурации.
+
+`app.ts`
+
+```TypeScript
+...
+import { AuthMiddleware } from './common/auth.middleware';
+
+@injectable()
+export class App {
+  ...
+  // Глобальный парсер BODY в JSON для всех запросов
+  // Также можно настроить Middleware для конкретных запросов
+  useMiddleware(): void {
+    // Приложение (this.app) использует (this.app.use) Middleware
+    this.app.use(json()); // Парсер BODY в JSON для всех запросов
+
+    // Внедрение auth.middleware на глобальном уровне в приложение
+    const authMiddleware = new AuthMiddleware(this.configService.get('SECRET'));
+    this.app.use(authMiddleware.execute.bind(authMiddleware));
+    // Теперь во всех запросах Request будет доступно поле user
+    // если запрос был выполнен с токеном, иначе поле user будет undefined
+  }
+  ...
+}
+```
+
+5. Тестирование Системы Авторизации:
+
+   - Создание тестового метода для вывода информации о пользователе.
+   - Тестирование с использованием JWT токена в запросе.
+
+Дополняем интерфейс методом для получения информации о пользователе
+
+`users\users.controller.interface.ts`
+
+```TypeScript
+import { NextFunction, Request, Response } from 'express';
+
+export interface IUserController {
+  login: (req: Request, res: Response, next: NextFunction) => void;
+  register: (req: Request, res: Response, next: NextFunction) => void;
+  // Дополняем интерфейс методом для получения информации о пользователе
+  info: (req: Request, res: Response, next: NextFunction) => void;
+}
+```
+
+`users\users.controller.ts`
+
+```TypeScript
+  ...
+// Декоратор @injectable говорит, что UserController можно положить в конейнер
+@injectable()
+export class UserController extends BaseController implements IUserController {
+  constructor(
+    @inject(TYPES.ILogger) private loggerService: ILogger,
+    @inject(TYPES.UserService) private userService: IUserService,
+    @inject(TYPES.ConfigService) private configService: IConfigService
+  ) {
+    ...
+    this.bindRoutes([
+      ...
+      {
+        path: '/info',
+        method: 'get',
+        func: this.info,
+        middlewares: []
+      }
+    ]);
+  }
+
+  async info({ user }: Request, res: Response, next: NextFunction): Promise<void> {
+    // Если выполнен запрос с валидным токеном, Request будет содержать информацию user
+    // В случае валидного токена авторизации получим в ответе email: user
+    this.ok(res, { email: user });
+  }
+  ...
+}
+```
+
+6. Дополнительные Настройки:
+
+   - Настройка `ts-node` и `nodemon` для работы с кастомными типами.
+
+Чтобы подтягивались дополнительные типы необходима модификация настроек, добавляем опцию `--files` в конфигурационном файле `nodemon.json`.
+
+`--files` позволяет добавить дополнительные типы в определения.
+
+```json
+{
+  "watch": ["src"],
+  "ext": "ts,json",
+  "ignore": ["src/**/*.spec.ts"],
+  "exec": "ts-node --files ./src/main.ts"
+}
+```
+
+### Выполнение сборки для корректного добавления custom types и тестирование
+
+```shell
+npm run build
+npm run dev
+http GET http://localhost:8000/users/info Authorization:"Bearer JWTabcdXXAAffss12345"
+```
+
+```Text
+> http GET http://localhost:8000/users/info Authorization:"Bearer eyJhbGciOiJ123I1NiIsInXXXCI6IkpXVCJ9.eyJlbWFpbCI6InRlc3RAbWFpbC5jb2333CJpYXXXOjE3NDcxMjk3MjF9.WmwAl0qtthW6gcsf4iYnQViHXXXgEvu6jOH123IYJKE"
+
+HTTP/1.1 200 OK
+Connection: keep-alive
+Content-Length: 25
+Content-Type: application/json; charset=utf-8
+Date: Wed, 14 May 2025 14:25:32 GMT
+ETag: W/"19-SjKRhlyL1siEkj1UiWox5TCOGts"
+Keep-Alive: timeout=5
+X-Powered-By: Express
+
+{
+    "email": "test@mail.com"
+}
+```
+
+### Пример с curl
+
+```shell
+curl -X GET http://localhost:8000/users/info -H "Authorization: Bearer eyJhbGciIkpXVCJ9..."
+```
+
+Чтобы дополнить запрос токеном в заголовке с помощью httpie, нужно использовать заголовок Authorization в формате:
+
+```makefile
+Authorization: Bearer <токен>
+```
+
+### Пример команды:
+
+```bash
+http GET http://localhost:8000/users/info Authorization:"Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+```
+
+- `http` — команда httpie;
+- `GET` — HTTP-метод;
+- `http://localhost:8000/users/info` — URL запроса;
+- `Authorization:"Bearer <токен>"` — передаётся заголовок.
+
+Обязательные условия для обработки запросов с токеном авторизации:
+
+- токен валиден и не истёк.
+- сервер действительно ожидает заголовок Authorization в формате Bearer.
+
+Если токен в переменной окружения, можно передать его так:
+
+```bash
+http GET http://localhost:8000/users/info Authorization:"Bearer $TOKEN"
+```
+
+Слово `Bearer` в контексте заголовков авторизации означает буквально «носитель» или «обладатель». Оно указывает, что обладатель токена (`bearer token`) имеет право на доступ, без дополнительной проверки личности.
+
+Перевод Bearer: Носитель, владелец
+
+### История и происхождение
+
+Формат `Authorization: Bearer <token>` появился с `OAuth 2.0`, который был стандартизирован в `RFC 6750 (2012)` как часть `OAuth 2.0 Bearer Token Usage`.
+
+### Почему Bearer?
+
+В протоколе `OAuth 2.0` токен выдаётся клиенту (например, браузеру).
+
+Кто носит (`bear`) этот токен — тот и считается авторизованным.
+
+Никаких дополнительных проверок не проводится (например, подписи или сертификаты) — достаточно только предъявить токен.
+
+Это похоже на предъявление пропуска: если у тебя есть токен — ты проходишь, независимо от того, кто ты на самом деле.
+
+### Пример в HTTP-заголовке
+
+```http
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6...
+```
+
+### Безопасность
+
+Поскольку Bearer токен не требует подтверждения владения (в отличие, например, от HMAC), он должен передаваться только по HTTPS. Любой, кто его перехватит, сможет им воспользоваться.
+
+### Примечания к использованию `verify` библиотеки `jsonwebtoken`:
+
+в современных версиях библиотеки `jsonwebtoken` (начиная примерно с версии `v8+` и выше, особенно в версиях с полной поддержкой TypeScript), у функции `verify` третий параметр — колбэк, который принимает два аргумента:
+
+```TypeScript
+(err: VerifyErrors | null, decoded: string | JwtPayload | undefined) => void
+```
+
+То есть:
+
+- `err`: ошибка верификации или null, если всё прошло успешно;
+- `decoded`: расшифрованный `payload`, который может быть:
+- строкой (`string`) — если токен был закодирован строкой;
+- объектом (`JwtPayload`) — если токен содержит объект;
+- `undefined` — если по какой-то причине decoded не получен.
+
+Исторически в старых версиях `jsonwebtoken` до официальной поддержки TypeScript (до v8.x), типы не шли в составе библиотеки. Требовалась установка `@types/jsonwebtoken`, и типизация могла отличаться или быть менее строгой.
+
+До версии 9.0.0 сигнатура выглядела так же, но в типах была некоторая неоднозначность, например `decoded: any`.
+
+В последних версиях (особенно после `jsonwebtoken@9.x`), типы уточнены, и теперь `decoded` — это строго `string | JwtPayload | undefined`.
+
+Пример текущей сигнатуры из `@types/jsonwebtoken`:
+
+```TypeScript
+verify(
+  token: string,
+  secretOrPublicKey: Secret,
+  options: VerifyOptions,
+  callback: (err: VerifyErrors | null, decoded: JwtPayload | string | undefined) => void
+): void;
+```
+
+### Вывод
+
+Если используются современные версии `jsonwebtoken` с актуальными типами (либо встроенными, либо из `@types/jsonwebtoken`), то:
+
+- `payload` (или decoded) — всегда `string | JwtPayload | undefined`;
+- нужно делать проверку типа перед обращением к полям (email, id, и т.п.).

@@ -52,6 +52,12 @@ export class UserController extends BaseController implements IUserController {
         method: 'post',
         func: this.login,
         middlewares: [new ValidateMiddleware(UserLoginDto)]
+      },
+      {
+        path: '/info',
+        method: 'get',
+        func: this.info,
+        middlewares: []
       }
     ]);
   }
@@ -146,6 +152,12 @@ export class UserController extends BaseController implements IUserController {
     // В данном случае отправлять будем email + id
     // id чтобы проверить результат сохранения в БД
     this.ok(res, { email: result.email, id: result.id });
+  }
+
+  async info({ user }: Request, res: Response, next: NextFunction): Promise<void> {
+    // Если выполнен запрос с валидным токеном, Request будет содержать информацию user
+    // В случае валидного токена авторизации получим в ответе email: user
+    this.ok(res, { email: user });
   }
 
   // SECRET будем хранить в .env файле
