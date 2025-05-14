@@ -15,6 +15,7 @@ import { ValidateMiddleware } from '../common/validate.middleware';
 import { sign } from 'jsonwebtoken'; // Функция для подписи JWT
 import { IConfigService } from '../config/config.service.interface';
 import { IUserService } from './users.service.interface';
+import { AuthGuard } from '../common/auth.guard';
 
 // Временные импорты для экспериментов с производительностью
 // import fs from 'fs';
@@ -27,7 +28,7 @@ import { IUserService } from './users.service.interface';
 // class User {}
 // const users = [];
 
-// Декоратор @injectable говорит, что UserController можно положить в конейнер
+// Декоратор @injectable говорит, что UserController можно положить в контейнер
 @injectable()
 export class UserController extends BaseController implements IUserController {
   // Декоратор @inject принимает ключ TYPES.ILogger для внедрения зависимости
@@ -57,7 +58,7 @@ export class UserController extends BaseController implements IUserController {
         path: '/info',
         method: 'get',
         func: this.info,
-        middlewares: []
+        middlewares: [new AuthGuard()] // Middleware для проверки авторизации
       }
     ]);
   }
@@ -157,7 +158,10 @@ export class UserController extends BaseController implements IUserController {
   async info({ user }: Request, res: Response, next: NextFunction): Promise<void> {
     // Если выполнен запрос с валидным токеном, Request будет содержать информацию user
     // В случае валидного токена авторизации получим в ответе email: user
-    this.ok(res, { email: user });
+
+    // Получаем дополнительную информацию о пользователе из репозитория
+    const userInfo = await this.userService.getUserInfo(user);
+    this.ok(res, { email: userInfo?.email, id: userInfo?.id });
   }
 
   // SECRET будем хранить в .env файле

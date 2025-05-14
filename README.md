@@ -45,6 +45,7 @@
 8.1. Работа JWT
 8.2. Создание токена
 8.3. Middleware для проверки jwt
+8.4. Guard авторизации
 
 ## Git
 
@@ -97,6 +98,7 @@ git commit -m "Add ORM Prisma + UsersRepository"
 git commit -m "Add Simple User Login Password Validation"
 git commit -m "Add JWT + signJWT Method in UserController"
 git commit -m "Add JWT Verification Middleware"
+git commit -m "Add Authorization Guard"
 ```
 
 ## Дополнительные темы
@@ -141,7 +143,7 @@ npm i -D prisma
 npm i @prisma/client
 # JWT
 npm i jsonwebtoken
-npm i -D @types/jsonwebtoken.
+npm i -D @types/jsonwebtoken
 ```
 
 ## 1.1. Простой http сервер
@@ -7588,3 +7590,162 @@ verify(
 
 - `payload` (или decoded) — всегда `string | JwtPayload | undefined`;
 - нужно делать проверку типа перед обращением к полям (email, id, и т.п.).
+
+## 8.4. Guard авторизации
+
+1. Реализация `guard` для ограничения доступа неавторизованных пользователей.
+   Также в JWT можно добавить роли и использовать их для авторизации.
+2. Исправление ошибок в существующем `middleware`.
+3. Реализация функции для получения информации о пользователе.
+
+Шаги реализации:
+
+1. Исправление ошибки в `Middleware`:
+
+   - Проблема: Асинхронная функция `verify` вызывается всегда, даже если проверка пройдена, из-за отсутствия `else` после `if`
+   - Решение: Добавить `else` для предотвращения двойного вызова `next()`
+
+Необходимо добавить в `common\auth.middleware.ts` else в блоке с методом `execute` поскольку оператор if используется с функцией `verify` с асинхронным callback, в результате чего может еще не сработать callback но выполнится `next()`. Это могло приводить к двойному срабатыванию `next()`.
+
+Исправленный вариант:
+
+```TypeScript
+export class AuthMiddleware implements IMiddleware {
+  ...
+  execute(req: Request, res: Response, next: NextFunction): void {
+    if (req.headers.authorization) {
+      verify(req.headers.authorization.split(' ')[1], this.secret,
+      (err, payload) => {
+        if (err) {
+          next(); // Ничего не делаем, возможен повторный вызов
+        } else if (payload && typeof payload === 'object' && 'email' in payload) {
+          req.user = payload.email; // Добавим в Request пользователя
+          next(); // Возможен повторный вызов
+        }
+      });
+    } else { // Нужно добавить этот блок else
+      next();
+    }
+  }
+}
+```
+
+2. Создание `Guard`:
+
+   - Guard будет использоваться для проверки авторизации пользователя перед доступом к контроллерам
+   - Создание файла `auth.guard.ts`
+   - Реализация проверки наличия `request.user`, если нет - возврат ошибки с кодом 401
+
+Создаем новый `Middleware` класс, с названием `AuthGuard`. Название класса выбрано по аналогии с другими фреймворками, например в NestJS также используется Guard, по сути это `ограничитель` который блокирует дальнейшее исполнение:
+
+`common\auth.guard.ts`
+
+```TypeScript
+import { IMiddleware } from './middleware.interface';
+import { NextFunction, Request, Response } from 'express';
+
+export class AuthGuard implements IMiddleware {
+  execute(req: Request, res: Response, next: NextFunction): void {
+    // Нужно проверить наличие в Request user
+    if (req.user) {
+      return next(); // все хорошо, мы пропускаем дальше
+    }
+    res.status(401).send({ error: 'Вы не авторизованы' });
+  }
+}
+```
+
+3. Добавление `Guard` к контроллеру:
+   В контроллере добавить созданный `guard` в соответствующий `route` для ограничения доступа
+
+```TypeScript
+import { AuthGuard } from '../common/auth.guard';
+...
+@injectable()
+export class UserController extends BaseController implements IUserController {
+  // Декоратор @inject принимает ключ TYPES.ILogger для внедрения зависимости
+  // Управлять зависимостями будет inversify
+  constructor(
+    @inject(TYPES.ILogger) private loggerService: ILogger,
+    @inject(TYPES.UserService) private userService: IUserService,
+    @inject(TYPES.ConfigService) private configService: IConfigService
+  ) {
+    ...
+    this.bindRoutes([
+      {
+        path: '/info',
+        method: 'get',
+        func: this.info,
+        middlewares: [new AuthGuard()]
+      }
+    ]);
+  }
+}
+```
+
+4. Функция `getInfo` для получения данных пользователя:
+
+   - Дополнить сервис `UserService` методом `getUserInfo`
+   - Метод принимает email, возвращает данные пользователя или `null`
+   - В контроллере реализовать логику использования `getUserInfo` для отправки данных о пользователе при успешной авторизации
+
+`users\users.service.interface.ts`
+
+```TypeScript
+export interface IUserService {
+  ...
+  getUserInfo: (email: string) => Promise<UserModel | null>;
+}
+```
+
+`users\users.service.ts`
+
+```TypeScript
+  // Получение информации о пользователе по уникальному идентификатору: email
+  // В результата получим пользователя или null (если его нет в БД)
+  // Метод не обязательно используется для авторизованных пользователей
+  async getUserInfo(email: string): Promise<UserModel | null> {
+    return this.usersRepository.find(email);
+  }
+```
+
+`users\users.controller.ts`
+
+```TypeScript
+  async info({ user }: Request, res: Response, next: NextFunction): Promise<void> {
+    // Если выполнен запрос с валидным токеном, Request будет содержать информацию user
+    // В случае валидного токена авторизации получим в ответе email: user
+
+    // Получаем дополнительную информацию о пользователе из репозитория
+    const userInfo = await this.userService.getUserInfo(user);
+    this.ok(res, { email: userInfo?.email, id: userInfo?.id });
+  }
+```
+
+### Важные моменты:
+
+1. В случае использования асинхронных функций всегда обращать внимание на корректный вызов `next()` чтобы избежать ошибок. Лучше использовать Promise в асинхронном коде, код с использованием Promise лучше читается и не приводит к логическим ошибкам.
+2. `Guard` блокирует доступ к роутам для неавторизованных пользователей
+3. В случае отсутствия пользователя в базе данных, важно корректно обработать эту ситуацию и отправить соответствующий ответ клиенту.
+
+### Тестирование
+
+```
+> npm run dev
+
+> http GET http://localhost:8000/users/info Authorization:"Bearer eyJhbGciOiJ123I1NiIsInXXXCI6IkpXVCJ9.eyJlbWFpbCI6InRlc3RAbWFpbC5jb2333CJpYXXXOjE3NDcxMjk3MjF9.WmwAl0qtthW6gcsf4iYnQViHXXXgEvu6jOH123IYJKE"
+
+HTTP/1.1 200 OK
+Connection: keep-alive
+Content-Length: 32
+Content-Type: application/json; charset=utf-8
+Date: Wed, 14 May 2025 17:42:21 GMT
+ETag: W/"20-AxzlE0B8bFv4mpO2/teO4otUN/Q"
+Keep-Alive: timeout=5
+X-Powered-By: Express
+
+{
+    "email": "test@mail.com",
+    "id": 1
+}
+```

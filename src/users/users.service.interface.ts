@@ -10,4 +10,5 @@ export interface IUserService {
   // null возвращается если такой пользователь уже есть
   createUser: (dto: UserRegisterDto) => Promise<UserModel | null>;
   validateUser: (dto: UserLoginDto) => Promise<boolean>;
+  getUserInfo: (email: string) => Promise<UserModel | null>;
 }

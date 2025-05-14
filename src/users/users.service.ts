@@ -60,4 +60,11 @@ export class UserService implements IUserService {
     // Проверяем совпадение пароля - это результат валидации пароля
     return newUser.comparePassword(password);
   }
+
+  // Получение информации о пользователе по уникальному идентификатору: email
+  // В результата получим пользователя или null (если его нет в БД)
+  // Метод не обязательно используется для авторизованных пользователей
+  async getUserInfo(email: string): Promise<UserModel | null> {
+    return this.usersRepository.find(email);
+  }
 }
