@@ -99,7 +99,8 @@ export const appBindings = new ContainerModule(({ bind }) => {
   bind<App>(TYPES.Application).to(App);
 });
 
-function bootstrap(): IBootstrapReturn {
+// Функция асинхронная
+async function bootstrap(): Promise<IBootstrapReturn> {
   // DI с контейнером inversify
   // Контейнер - место хранения биндингов символов типов на конкретные реализации
   const appContainer = new Container();
@@ -107,9 +108,11 @@ function bootstrap(): IBootstrapReturn {
   appContainer.load(appBindings);
   const app = appContainer.get<App>(TYPES.Application);
   // Точка входа в приложение
-  app.init();
+  await app.init();
+  // Когда выполенение дойдет до return, приложение будет полностью проинициализировано
   return { appContainer, app };
 }
 
 // В дальнейшем понадобятся для тестов экземпляры приложения и контейнера
-export const { app, appContainer } = bootstrap();
+// Нельзя спредить асинхронные функции
+export const boot = bootstrap();

@@ -49,6 +49,8 @@
 9.1. Виды тестирования
 9.2. Unit тесты
 9.3. Unit тесты функции validateUser
+9.4. E2E тесты
+9.5. E2E тесты и проверка покрытия кода тестами
 
 ## Git
 
@@ -103,6 +105,7 @@ git commit -m "Add JWT + signJWT Method in UserController"
 git commit -m "Add JWT Verification Middleware"
 git commit -m "Add Authorization Guard"
 git commit -m "Add Unit Tests with Jest"
+git commit -m "Add End-to-End Tests + Сoverage"
 ```
 
 ## Дополнительные темы
@@ -148,6 +151,10 @@ npm i @prisma/client
 # JWT
 npm i jsonwebtoken
 npm i -D @types/jsonwebtoken
+# Tests
+npm i -D jest @types/jest ts-jest
+npm install -D supertest
+npm install -D @types/supertest
 ```
 
 ## 1.1. Простой http сервер
@@ -8135,5 +8142,365 @@ Test Suites: 2 passed, 2 total
 Tests:       5 passed, 5 total
 Snapshots:   0 total
 Time:        8.128 s
+Ran all test suites.
+```
+
+## 9.4. E2E тесты
+
+### End-to-End тестирование:
+
+- Особенности: В отличие от юнит-тестов, end-to-end тестирование требует полностью развернутого приложения, включая окружение и базу данных.
+- Рекомендации: Для тестирования рекомендуется использовать отдельное окружение и базу данных, чтобы избежать воздействия на продакшн или девелопмент данные.
+
+### Настройка и инструменты:
+
+- Инструменты: Используем `Jest` для написания тестов и библиотеку `SuperTest` для отправки HTTP-запросов к API.
+- Установка и Конфигурация:
+
+```shell
+npm install -D supertest
+npm install -D @types/supertest
+```
+
+Настраиваем отдельный конфигурационный файл Jest для `end-to-end` тестов.
+
+- e2e тесты обычно находятся в отдельной директории, например: `./tests`
+- определяем тип тестов (шаблон для поиска тестов): `.e2e-spec.ts$`, используется $ чтобы указать, что это последний символ Regex.
+
+`jest.e2e.config.ts`
+
+```TypeScript
+import type { Config } from '@jest/types';
+
+const config: Config.InitialOptions = {
+  verbose: true,
+  preset: 'ts-jest',
+  rootDir: './tests',
+  testRegex: '.e2e-spec.ts$'
+};
+
+export default config;
+```
+
+### Подготовка приложения:
+
+- Модификация приложения: Вносим изменения для корректного закрытия приложения после тестирования и обеспечения асинхронной инициализации.
+- Инициализация: Преобразуем главную функцию в асинхронную для удостоверения, что приложение полностью инициализировано перед выполнением тестов.
+
+У сервера есть специальный метод `close` для завершения. Сервер перестанет слушать события и его можно будет безопасно завершить.
+Этот метод можно вызвать после завершения всех тестов и закрыть приложение.
+
+`app.ts`
+
+```TypeScript
+  // Завершить работу сервера
+	public close(): void {
+		this.server.close();
+	}
+```
+
+`main.ts`
+
+```TypeScript
+// Функция асинхронная
+async function bootstrap(): Promise<IBootstrapReturn> {
+  // DI с контейнером inversify
+  // Контейнер - место хранения биндингов символов типов на конкретные реализации
+  const appContainer = new Container();
+  // Загрузить существующие биндинги которые определили раньше
+  appContainer.load(appBindings);
+  const app = appContainer.get<App>(TYPES.Application);
+  // Точка входа в приложение
+  await app.init();
+  // Когда выполенение дойдет до return, приложение будет полностью проинициализировано
+  return { appContainer, app };
+}
+
+// Нельзя спредить асинхронные функции
+export const boot = bootstrap();
+```
+
+### Написание тестов:
+
+- Структура теста: Структура end-to-end тестов похожа на юнит-тесты. Необходимо получить экземпляр приложения, используя SuperTest для выполнения HTTP-запросов.
+- Пример тестирования: Процесс регистрации пользователя, проверка ответа API на корректность выполнения операции.
+- Важность изоляции тестов: Подчеркиваем важность использования отдельной базы данных для изоляции тестов друг от друга.
+
+База данных должна быть подготовлена. БД должна содержать какие-то первоначальные данные.
+
+Пример теста `tests\users.e2e-spec.ts`:
+
+```TypeScript
+import { App } from '../src/app';
+import { boot } from '../src/main';
+import request from 'supertest';
+
+let application: App;
+
+beforeAll(async () => {
+  const { app } = await boot;
+  application = app;
+});
+
+describe('Users e2e', () => {
+  it('Register - error', async () => {
+    // Обычно supertest импортируют как request
+    // в request необходимо передать экземпляр приложения
+    // Используется цепочка вызовов .post .send .expect
+    const res = await request(application.app)
+      .post('/users/register')
+      .send({ email: 'a@a.ru', password: '1' });
+
+    // Проверка результата запроса
+    expect(res.statusCode).toBe(422);
+  });
+});
+
+// После всех тестов завершить приложение
+afterAll(() => {
+  application.close();
+});
+```
+
+### Запуск тестов:
+
+- Настройка скрипта: Модифицируем `package.json` для добавления скрипта запуска end-to-end тестов, указывая настройки через отдельный конфигурационный файл Jest для end-to-end тестирования.
+
+`package.json`
+
+```json
+"test:e2e": "jest --config jest.e2e.config.ts"
+```
+
+- Очистка ресурсов: После выполнения тестов необходимо закрыть приложение, чтобы освободить ресурсы и завершить процесс тестирования корректно.
+
+Предварительно создаем пользователя, с которым будет выполняться тестирование.
+
+```Text
+> http POST http://localhost:8000/users/register email=a@a.ru
+password=password name=Yury
+
+HTTP/1.1 200 OK
+Connection: keep-alive
+Content-Length: 25
+Content-Type: application/json; charset=utf-8
+Date: Sat, 17 May 2025 19:37:41 GMT
+ETag: W/"19-htYcD37nznudnZRJ2AHwEc8pvPo"
+Keep-Alive: timeout=5
+X-Powered-By: Express
+
+{
+    "email": "a@a.ru",
+    "id": 3
+}
+```
+
+```shell
+npm run test:e2e
+```
+
+Результат теста
+
+```Text
+ PASS  tests/users.e2e-spec.ts (15.835 s)
+  Users e2e
+    √ Register - error (266 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       1 passed, 1 total
+Snapshots:   0 total
+Time:        17.123 s
+Ran all test suites.
+```
+
+## 9.5. E2E тесты и проверка покрытия кода тестами
+
+1. Написание тестов позволяет проверить основную функциональность приложения и углубить понимание процесса разработки.
+2. Проверка покрытия кода тестами (coverage) помогает выявить "слепые зоны" в тестировании и улучшить качество кода.
+3. Необязательно стремиться к 100% покрытию кода тестами, важно, чтобы основное функциональное ядро приложения было надежно протестировано.
+
+### Тесты для проверки функциональности логина и получения информации.
+
+1. Ошибка регистрации (детально рассматривалась ранее).
+2. Успешный логин: отправка корректных данных логина и пароля; ожидаем приход JWT токена.
+3. Неуспешный логин: отправка неверных данных; ожидаем получение ошибки 401.
+4. Успешное получение информации: после логина отправляем JWT токен в хедерах; проверяем полученный email.
+5. Неуспешное получение информации: используем невалидный токен; ожидаем ошибку с кодом 401.
+
+`tests\users.e2e-spec.ts`
+
+```TypeScript
+import { App } from '../src/app';
+import { boot } from '../src/main';
+import request from 'supertest';
+
+let application: App;
+
+beforeAll(async () => {
+  const { app } = await boot;
+  application = app;
+});
+
+describe('Users e2e', () => {
+  // 1. Ошибка регистрации
+  it('Register - error', async () => {
+    // Обычно supertest импортируют как request
+    // в request необходимо передать экземпляр приложения
+    // Используется цепочка вызовов .post .send .expect
+    const res = await request(application.app)
+      .post('/users/register')
+      .send({ email: 'a@a.ru', name: 'Test', password: 'password' });
+
+    // Проверка результата запроса
+    expect(res.statusCode).toBe(422);
+  });
+
+  // 2. Успешный Login:
+  // отправка корректных данных логина и пароля; ожидаем приход JWT токена
+  it('Login - success', async () => {
+    const res = await request(application.app)
+      .post('/users/login')
+      .send({ email: 'a@a.ru', password: 'password' });
+    expect(res.body.jwt).not.toBeUndefined();
+  });
+
+  // 3. Неуспешный логин:
+  // отправка неверных данных; ожидаем получение ошибки 401
+  it('Login - error', async () => {
+    const res = await request(application.app)
+      .post('/users/login')
+      .send({ email: 'a@a.ru', password: 'NOT-CORRECT-PASSWORD' });
+    expect(res.statusCode).toBe(401);
+  });
+
+  // 4. Успешное получение информации по токену:
+  // после логина отправляем JWT токен в хедерах; проверяем полученный email
+  it('Info - success', async () => {
+    const login = await request(application.app)
+      .post('/users/login')
+      .send({ email: 'a@a.ru', password: 'password' });
+    const res = await request(application.app)
+      .get('/users/info')
+      .set('Authorization', `Bearer ${login.body.jwt}`);
+    expect(res.body.email).toBe('a@a.ru');
+  });
+
+  // 5. Некорректный токен
+  // Неуспешное получение информации: используем невалидный токен; ожидаем ошибку с кодом 401
+  it('Info - error', async () => {
+    const res = await request(application.app).get('/users/info').set('Authorization', `Bearer 1`);
+    expect(res.statusCode).toBe(401);
+  });
+});
+
+// После всех тестов завершить приложение
+afterAll(() => {
+  application.close();
+});
+```
+
+Выполнение E2E тестов:
+
+```shell
+npm run test:e2e
+```
+
+```Text
+ PASS  tests/users.e2e-spec.ts
+  Users e2e
+    √ Register - error (148 ms)
+    √ Login - success (100 ms)
+    √ Login - error (82 ms)
+    √ Info - success (112 ms)
+    √ Info - error (7 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       5 passed, 5 total
+Snapshots:   0 total
+Time:        3.261 s
+Ran all test suites.
+```
+
+### Проверка Покрытия Кода Тестами (Coverage):
+
+Полная проверка покрытия тестами приложения используется чтобы понять какие части кода протестированы, а какие нет.
+
+#### Модификация конфигурации для получения отчета о покрытии.
+
+Дополнение конфигурации `package.json` для проверки покрытия тестами приложения, используется флаг `--coverage`.
+
+Также необходимо обновить файл `jest.e2e.config.ts` для тестов или использовать новый файл конфигурации `jest.e2e-coverage.config.ts`:
+
+```TypeScript
+import type { Config } from '@jest/types';
+
+const config: Config.InitialOptions = {
+  verbose: true,
+  preset: 'ts-jest',
+  testRegex: '.e2e-spec.ts$'
+};
+
+export default config;
+```
+
+`package.json`
+
+```
+  "test:e2e-cov": "jest --config jest.e2e-coverage.config.ts --coverage"
+```
+
+```shell
+npm run test:e2e-cov
+```
+
+#### Анализ непокрытых тестами участков кода
+
+Как просматривать покрытие кода тестами:
+Обратить внимание на колонку `Uncovered Line #s`. В этой графе указаны строки кода, которые не тестировались в ходе теста. И нужно обратить внимание на них и дополнить тест новым функционалом. Но не стоит добиваться 100% покрытия тестами, часто это не требуется, лучше выполнить более детальное тестирование критичных участков кода.
+
+```Text
+ PASS  tests/users.e2e-spec.ts (6.302 s)
+  Users e2e
+    √ Register - error (128 ms)
+    √ Login - success (84 ms)
+    √ Login - error (84 ms)
+    √ Info - success (84 ms)
+    √ Info - error (5 ms)
+
+-------------------------|---------|----------|---------|---------|-------------------
+File                     | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s
+-------------------------|---------|----------|---------|---------|-------------------
+All files                |    92.8 |    72.22 |   84.74 |   92.17 |
+ src                     |     100 |      100 |     100 |     100 |
+  app.ts                 |     100 |      100 |     100 |     100 |
+  main.ts                |     100 |      100 |     100 |     100 |
+  types.ts               |     100 |      100 |     100 |     100 |
+ src/common              |   95.55 |    82.35 |   86.66 |   95.12 |
+  auth.guard.ts          |     100 |      100 |     100 |     100 |
+  auth.middleware.ts     |     100 |      100 |     100 |     100 |
+  base.controller.ts     |   95.23 |    66.66 |      75 |   94.11 | 35
+  validate.middleware.ts |   88.88 |       50 |     100 |   88.88 | 20
+ src/config              |    92.3 |       50 |     100 |    90.9 |
+  config.service.ts      |    92.3 |       50 |     100 |    90.9 | 14
+ src/database            |   78.57 |        0 |   66.66 |      75 |
+  prisma.service.ts      |   78.57 |        0 |   66.66 |      75 | 23-31
+ src/errors              |   88.88 |       50 |     100 |    87.5 |
+  exception.filter.ts    |   84.61 |       50 |     100 |   81.81 | 38-40
+  http-error.class.ts    |     100 |      100 |     100 |     100 |
+ src/logger              |    90.9 |      100 |      75 |   88.88 |
+  logger.service.ts      |    90.9 |      100 |      75 |   88.88 | 39
+ src/users               |   89.15 |    71.42 |   79.16 |   88.31 |
+  user.entity.ts         |   72.72 |      100 |      40 |   72.72 | 28-36
+  users.controller.ts    |   94.73 |    72.72 |     100 |   94.44 | 155,197
+  users.repository.ts    |      80 |      100 |      50 |      75 | 16-20
+  users.service.ts       |   91.66 |       50 |     100 |    90.9 | 46,53
+ src/users/dto           |     100 |      100 |     100 |     100 |
+  user-login.dto.ts      |     100 |      100 |     100 |     100 |
+  user-register.dto.ts   |     100 |      100 |     100 |     100 |
+-------------------------|---------|----------|---------|---------|-------------------
+Test Suites: 1 passed, 1 total
+Tests:       5 passed, 5 total
+Snapshots:   0 total
+Time:        7.115 s
 Ran all test suites.
 ```

@@ -96,4 +96,9 @@ export class App {
     // В данном месте будет добавлено логгирование
     this.logger.log(`Сервер запущен на http://localhost:${this.port}`);
   }
+
+  public close(): void {
+    // Завершить работу сервера
+    this.server.close();
+  }
 }

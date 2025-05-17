@@ -12,7 +12,9 @@
     "lint:fix": "eslint ./src/** --fix",
     "generate": "prisma generate",
     "build": "tsc",
-    "test": "jest"
+    "test": "jest",
+    "test:e2e": "jest --config jest.e2e.config.ts",
+    "test:e2e-cov": "jest --config jest.e2e-coverage.config.ts --coverage"
   },
   "author": "Yury Belokhonov",
   "license": "ISC",
@@ -35,6 +37,7 @@
     "@types/bcryptjs": "^2.4.6",
     "@types/express": "^5.0.1",
     "@types/jest": "^29.5.14",
+    "@types/supertest": "^6.0.3",
     "@typescript-eslint/eslint-plugin": "^8.32.0",
     "@typescript-eslint/parser": "^8.32.0",
     "eslint": "^9.26.0",
@@ -44,6 +47,7 @@
     "nodemon": "^3.1.10",
     "prettier": "^3.5.3",
     "prisma": "^6.7.0",
+    "supertest": "^7.1.1",
     "ts-jest": "^29.3.3",
     "ts-node": "^10.9.2",
     "typescript": "^5.8.3"
